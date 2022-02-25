@@ -5,37 +5,36 @@ import ru.mail.polis.Dao;
 
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.NavigableSet;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.NavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public class InMemoryDao implements Dao<byte[], BaseEntry<byte[]>> {
-    private final NavigableSet<BaseEntry<byte[]>> set =
-            new ConcurrentSkipListSet<>((o1, o2) -> Arrays.compare(o1.key(), o2.key()));
+    private final NavigableMap<byte[], BaseEntry<byte[]>> map =
+            new ConcurrentSkipListMap<>(Arrays::compare);
 
     @Override
     public Iterator<BaseEntry<byte[]>> get(byte[] from, byte[] to) {
         if (from == null && to == null) {
-            return set.iterator();
+            return map.values().iterator();
         }
-        NavigableSet<BaseEntry<byte[]>> temp;
+        NavigableMap<byte[], BaseEntry<byte[]>> temp;
         if (from == null) {
-            temp = set.headSet(new BaseEntry<>(to, null), false);
+            temp = map.headMap(to, false);
         } else if (to == null) {
-            temp = set.tailSet(new BaseEntry<>(from, null), true);
+            temp = map.tailMap(from, true);
         } else {
-            temp = set.subSet(new BaseEntry<>(from, null), true, new BaseEntry<>(to, null), false);
+            temp = map.subMap(from, true, to, false);
         }
-        return temp.iterator();
+        return temp.values().iterator();
     }
 
     @Override
     public BaseEntry<byte[]> get(byte[] key) {
-        BaseEntry<byte[]> entry = set.floor(new BaseEntry<>(key, null));
-        return entry == null || !Arrays.equals(entry.key(), key) ? null : entry;
+        return key == null ? null : map.get(key);
     }
 
     @Override
     public void upsert(BaseEntry<byte[]> entry) {
-        set.add(entry);
+        map.put(entry.key(), entry);
     }
 }
