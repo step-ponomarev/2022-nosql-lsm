@@ -56,7 +56,9 @@ public @interface DaoFactory {
 
                 @Override
                 public String toString() {
-                    return "StringDaoFactory<" + delegate.getClass().getSimpleName() + ">";
+                    String packageName = delegate.getClass().getPackageName();
+                    String lastPackage = packageName.substring(packageName.lastIndexOf('.' + 1));
+                    return "StringDaoFactory<" + lastPackage + "." + delegate.getClass().getSimpleName() + ">";
                 }
             };
         }
