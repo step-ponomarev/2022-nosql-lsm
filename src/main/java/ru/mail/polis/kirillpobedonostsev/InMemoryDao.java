@@ -18,12 +18,12 @@ public class InMemoryDao implements Dao<byte[], BaseEntry<byte[]>> {
             return set.iterator();
         }
         NavigableSet<BaseEntry<byte[]>> temp;
-        if (from != null && to != null) {
-            temp = set.subSet(new BaseEntry<>(from, null), true, new BaseEntry<>(to, null), false);
-        } else if (from != null) {
+        if (from == null) {
+            temp = set.headSet(new BaseEntry<>(to, null), false);
+        } else if (to == null) {
             temp = set.tailSet(new BaseEntry<>(from, null), true);
         } else {
-            temp = set.headSet(new BaseEntry<>(to, null), false);
+            temp = set.subSet(new BaseEntry<>(from, null), true, new BaseEntry<>(to, null), false);
         }
         return temp.iterator();
     }
