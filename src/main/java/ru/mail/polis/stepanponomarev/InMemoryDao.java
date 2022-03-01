@@ -64,6 +64,18 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
     }
 
     @Override
+    public void upsert(BaseEntry<ByteBuffer> entry) {
+        store.put(entry.key(), entry.value());
+    }
+
+    @Override
+    public Iterator<BaseEntry<ByteBuffer>> all() {
+        return new LazyMemoryAllocationIterator(
+                store.entrySet().iterator()
+        );
+    }
+
+    @Override
     public Iterator<BaseEntry<ByteBuffer>> allFrom(ByteBuffer from) {
         if (from == null) {
             return all();
@@ -82,18 +94,6 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
 
         return new LazyMemoryAllocationIterator(
                 store.headMap(to, false).entrySet().iterator()
-        );
-    }
-
-    @Override
-    public void upsert(BaseEntry<ByteBuffer> entry) {
-        store.put(entry.key(), entry.value());
-    }
-
-    @Override
-    public Iterator<BaseEntry<ByteBuffer>> all() {
-        return new LazyMemoryAllocationIterator(
-                store.entrySet().iterator()
         );
     }
 }
