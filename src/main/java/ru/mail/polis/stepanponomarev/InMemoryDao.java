@@ -6,11 +6,32 @@ import ru.mail.polis.Dao;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
-    final ConcurrentNavigableMap<ByteBuffer, ByteBuffer> store = new ConcurrentSkipListMap<>(Comparator.naturalOrder());
+    private final NavigableMap<ByteBuffer, ByteBuffer> store = new ConcurrentSkipListMap<>(Comparator.naturalOrder());
+
+    private static class LazyMemoryAllocationIterator implements Iterator<BaseEntry<ByteBuffer>> {
+        private final Iterator<Map.Entry<ByteBuffer, ByteBuffer>> iterator;
+
+        private LazyMemoryAllocationIterator(Iterator<Map.Entry<ByteBuffer, ByteBuffer>> iterator) {
+            this.iterator = iterator;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public BaseEntry<ByteBuffer> next() {
+            Map.Entry<ByteBuffer, ByteBuffer> entry = iterator.next();
+
+            return new BaseEntry<>(entry.getKey(), entry.getValue());
+        }
+    }
 
     @Override
     public Iterator<BaseEntry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) {
@@ -18,38 +39,28 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
             return all();
         }
 
-        if (from != null) {
-            return allFrom(from);
-        }
-
-        if (to != null) {
+        if (from == null) {
             return allTo(to);
         }
 
-        return store.entrySet()
-                .stream()
-                .filter(e -> isBetween(e.getKey(), from, to))
-                .map(e -> new BaseEntry<>(e.getKey(), e.getValue()))
-                .iterator();
-    }
-
-    private boolean isBetween(ByteBuffer current, ByteBuffer from, ByteBuffer to) {
-        if (from != null && from.compareTo(current) < 0) {
-            return false;
+        if (to == null) {
+            return allFrom(from);
         }
 
-        if (to != null && to.compareTo(current) >= 0) {
-            return false;
-        }
-
-        return true;
+        return new LazyMemoryAllocationIterator(
+                store.subMap(from, true, to, false).entrySet().iterator()
+        );
     }
 
     @Override
     public BaseEntry<ByteBuffer> get(ByteBuffer key) {
+        if (key == null) {
+            throw new IllegalArgumentException("Key cannot be null");
+        }
+
         ByteBuffer value = store.get(key);
 
-        return value == null ? null : new BaseEntry<>(key, value);
+        return new BaseEntry<>(key, value);
     }
 
     @Override
@@ -58,10 +69,9 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
             return all();
         }
 
-        return store.entrySet()
-                .stream()
-                .filter(e -> from.compareTo(e.getKey()) >= 0)
-                .map(e -> new BaseEntry<>(e.getKey(), e.getValue())).iterator();
+        return new LazyMemoryAllocationIterator(
+                store.tailMap(from, true).entrySet().iterator()
+        );
     }
 
     @Override
@@ -70,10 +80,9 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
             return all();
         }
 
-        return store.entrySet()
-                .stream()
-                .filter(e -> to.compareTo(e.getKey()) < 0)
-                .map(e -> new BaseEntry<>(e.getKey(), e.getValue())).iterator();
+        return new LazyMemoryAllocationIterator(
+                store.headMap(to, false).entrySet().iterator()
+        );
     }
 
     @Override
@@ -83,8 +92,8 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
 
     @Override
     public Iterator<BaseEntry<ByteBuffer>> all() {
-        return store.entrySet().stream()
-                .map(e -> new BaseEntry<>(e.getKey(), e.getValue()))
-                .iterator();
+        return new LazyMemoryAllocationIterator(
+                store.entrySet().iterator()
+        );
     }
 }
