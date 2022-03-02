@@ -4,19 +4,19 @@ import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
-    private final SortedMap<ByteBuffer, ByteBuffer> store = new ConcurrentSkipListMap<>();
+public class InMemoryDao implements Dao<byte[], Entry<byte[]>> {
+    private final SortedMap<byte[], byte[]> store = new ConcurrentSkipListMap<>(Arrays::compare);
 
-    private static class LazyMemoryAllocationIterator implements Iterator<Entry<ByteBuffer>> {
-        private final Iterator<Map.Entry<ByteBuffer, ByteBuffer>> iterator;
+    private static class LazyMemoryAllocationIterator implements Iterator<Entry<byte[]>> {
+        private final Iterator<Map.Entry<byte[], byte[]>> iterator;
 
-        public LazyMemoryAllocationIterator(Iterator<Map.Entry<ByteBuffer, ByteBuffer>> iterator) {
+        public LazyMemoryAllocationIterator(Iterator<Map.Entry<byte[], byte[]>> iterator) {
             this.iterator = iterator;
         }
 
@@ -26,15 +26,15 @@ public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
         }
 
         @Override
-        public Entry<ByteBuffer> next() {
-            Map.Entry<ByteBuffer, ByteBuffer> next = iterator.next();
+        public Entry<byte[]> next() {
+            Map.Entry<byte[], byte[]> next = iterator.next();
 
             return new BaseEntry<>(next.getKey(), next.getValue());
         }
     }
 
     @Override
-    public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) {
+    public Iterator<Entry<byte[]>> get(byte[] from, byte[] to) {
         if (from == null && to == null) {
             return new LazyMemoryAllocationIterator(store.entrySet().iterator());
         }
@@ -51,12 +51,12 @@ public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     }
 
     @Override
-    public void upsert(Entry<ByteBuffer> entry) {
+    public void upsert(Entry<byte[]> entry) {
         if (entry == null) {
             throw new IllegalArgumentException("Entry can't be null");
         }
 
-        ByteBuffer key = entry.key();
+        byte[] key = entry.key();
         if (entry.value() == null) {
             store.remove(key);
         } else {
