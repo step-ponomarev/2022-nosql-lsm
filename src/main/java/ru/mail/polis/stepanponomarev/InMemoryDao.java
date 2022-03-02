@@ -56,7 +56,6 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
         }
 
         ByteBuffer key = entry.key();
-
         if (entry.value() == null) {
             store.remove(key);
         } else {
