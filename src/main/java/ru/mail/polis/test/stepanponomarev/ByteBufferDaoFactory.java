@@ -19,13 +19,20 @@ public class ByteBufferDaoFactory implements DaoFactory.Factory<ByteBuffer, Entr
 
     @Override
     public String toString(ByteBuffer data) {
-        return data == null ? null : new String(data.array(), data.arrayOffset() + data.position(),
-                data.remaining(), StandardCharsets.UTF_8);
+        if (data == null) {
+            return null;
+        }
+
+        return StandardCharsets.UTF_8.decode(data).toString();
     }
 
     @Override
     public ByteBuffer fromString(String data) {
-        return data == null ? null : ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
+        if (data == null) {
+            return null;
+        }
+
+        return ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
