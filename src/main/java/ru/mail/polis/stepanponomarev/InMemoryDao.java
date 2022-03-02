@@ -7,11 +7,11 @@ import ru.mail.polis.Entry;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.SortedMap;
+import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class InMemoryDao implements Dao<byte[], Entry<byte[]>> {
-    private final SortedMap<byte[], byte[]> store = new ConcurrentSkipListMap<>(Arrays::compare);
+    private final NavigableMap<byte[], byte[]> store = new ConcurrentSkipListMap<>(Arrays::compare);
 
     private static class LazyMemoryAllocationIterator implements Iterator<Entry<byte[]>> {
         private final Iterator<Map.Entry<byte[], byte[]>> iterator;
