@@ -2,6 +2,7 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Dao;
+import ru.mail.polis.Entry;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -9,10 +10,10 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
+public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     private final SortedMap<ByteBuffer, ByteBuffer> store = new ConcurrentSkipListMap<>();
 
-    private static class LazyMemoryAllocationIterator implements Iterator<BaseEntry<ByteBuffer>> {
+    private static class LazyMemoryAllocationIterator implements Iterator<Entry<ByteBuffer>> {
         private final Iterator<Map.Entry<ByteBuffer, ByteBuffer>> iterator;
 
         public LazyMemoryAllocationIterator(Iterator<Map.Entry<ByteBuffer, ByteBuffer>> iterator) {
@@ -25,7 +26,7 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
         }
 
         @Override
-        public BaseEntry<ByteBuffer> next() {
+        public Entry<ByteBuffer> next() {
             Map.Entry<ByteBuffer, ByteBuffer> next = iterator.next();
 
             return new BaseEntry<>(next.getKey(), next.getValue());
@@ -33,7 +34,7 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
     }
 
     @Override
-    public Iterator<BaseEntry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) {
+    public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) {
         if (from == null && to == null) {
             return new LazyMemoryAllocationIterator(store.entrySet().iterator());
         }
@@ -50,7 +51,7 @@ public class InMemoryDao implements Dao<ByteBuffer, BaseEntry<ByteBuffer>> {
     }
 
     @Override
-    public void upsert(BaseEntry<ByteBuffer> entry) {
+    public void upsert(Entry<ByteBuffer> entry) {
         if (entry == null) {
             throw new IllegalArgumentException("Entry can't be null");
         }

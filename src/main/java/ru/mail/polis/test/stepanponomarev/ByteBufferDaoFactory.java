@@ -10,10 +10,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 @DaoFactory(stage = 0)
-public class ByteBufferDaoFactory implements DaoFactory.Factory<ByteBuffer, BaseEntry<ByteBuffer>> {
+public class ByteBufferDaoFactory implements DaoFactory.Factory<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
-    public Dao<ByteBuffer, BaseEntry<ByteBuffer>> createDao() {
+    public Dao<ByteBuffer, Entry<ByteBuffer>> createDao() {
         return new InMemoryDao();
     }
 
