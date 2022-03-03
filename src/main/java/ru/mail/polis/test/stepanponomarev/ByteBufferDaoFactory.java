@@ -5,36 +5,46 @@ import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.InMemoryDao;
 import ru.mail.polis.test.DaoFactory;
+
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 @DaoFactory
-public class ByteBufferDaoFactory implements DaoFactory.Factory<byte[], Entry<byte[]>> {
+public class ByteBufferDaoFactory implements DaoFactory.Factory<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
-    public Dao<byte[], Entry<byte[]>> createDao() {
+    public Dao<ByteBuffer, Entry<ByteBuffer>> createDao() {
         return new InMemoryDao();
     }
 
     @Override
-    public String toString(byte[] data) {
+    public String toString(ByteBuffer data) {
         if (data == null) {
             return null;
         }
 
-        return new String(data, StandardCharsets.UTF_8);
+        if (!data.hasArray()) {
+            throw new IllegalArgumentException("Buffer should have array");
+        }
+
+        int startIndex = data.arrayOffset();
+        int curIndex = data.arrayOffset() + data.position();
+        int endIndex = curIndex + data.remaining();
+
+        return new String(data.array(), startIndex, endIndex, StandardCharsets.UTF_8);
     }
 
     @Override
-    public byte[] fromString(String data) {
+    public ByteBuffer fromString(String data) {
         if (data == null) {
             return null;
         }
 
-        return data.getBytes(StandardCharsets.UTF_8);
+        return ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
-    public Entry<byte[]> fromBaseEntry(Entry<byte[]> entry) {
+    public Entry<ByteBuffer> fromBaseEntry(Entry<ByteBuffer> entry) {
         return new BaseEntry<>(entry.key(), entry.value());
     }
 }
