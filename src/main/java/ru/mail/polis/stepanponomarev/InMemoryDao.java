@@ -31,14 +31,9 @@ public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     @Override
     public void upsert(Entry<ByteBuffer> entry) {
         if (entry == null) {
-            throw new IllegalArgumentException("Entry can't be null");
+            throw new NullPointerException("Entry can't be null");
         }
 
-        ByteBuffer key = entry.key();
-        if (entry.value() == null) {
-            store.remove(key);
-        } else {
-            store.put(entry.key(), entry);
-        }
+        store.put(entry.key(), entry);
     }
 }
