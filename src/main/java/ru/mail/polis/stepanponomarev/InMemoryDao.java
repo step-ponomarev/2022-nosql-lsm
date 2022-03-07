@@ -1,18 +1,19 @@
 package ru.mail.polis.stepanponomarev;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
-    private final SortedMap<ByteBuffer, Entry<ByteBuffer>> store = new ConcurrentSkipListMap<>();
+public class InMemoryDao implements Dao<MemorySegment, Entry<MemorySegment>> {
+    private final SortedMap<MemorySegment, Entry<MemorySegment>> store = new ConcurrentSkipListMap<>(Utils.MEMORY_SEGMENT_COMPARATOR);
 
     @Override
-    public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) {
+    public Iterator<Entry<MemorySegment>> get(MemorySegment from, MemorySegment to) {
         if (from == null && to == null) {
             return store.values().iterator();
         }
@@ -29,7 +30,7 @@ public class InMemoryDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     }
 
     @Override
-    public void upsert(Entry<ByteBuffer> entry) {
+    public void upsert(Entry<MemorySegment> entry) {
         if (entry == null) {
             throw new NullPointerException("Entry can't be null");
         }
