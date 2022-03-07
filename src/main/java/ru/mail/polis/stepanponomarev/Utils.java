@@ -5,7 +5,9 @@ import jdk.incubator.foreign.MemorySegment;
 
 import java.util.Comparator;
 
-class Utils {
+final class Utils {
+    private Utils() {}
+
     public final static Comparator<MemorySegment> MEMORY_SEGMENT_COMPARATOR = (MemorySegment o1, MemorySegment o2) -> {
         if (o1 == o2) {
             return 0;
