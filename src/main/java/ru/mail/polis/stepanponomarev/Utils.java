@@ -1,26 +1,47 @@
 package ru.mail.polis.stepanponomarev;
 
-import jdk.incubator.foreign.MemoryAccess;
-import jdk.incubator.foreign.MemorySegment;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
-import java.util.Comparator;
+class Utils {
+    public static ByteBuffer toByteBuffer(int num) {
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+        buffer.putInt(num);
+        buffer.position(0);
 
-final class Utils {
-    private Utils() {}
+        return buffer;
+    }
 
-    public final static Comparator<MemorySegment> MEMORY_SEGMENT_COMPARATOR = (MemorySegment o1, MemorySegment o2) -> {
-        if (o1 == o2) {
-            return 0;
+    public static ByteBuffer readByteBuffer(FileChannel fileChannel, long position, int keySize) throws IOException {
+        if (!fileChannel.isOpen()) {
+            throw new IllegalStateException("File channel is closed");
         }
 
-        long mismatch = o1.mismatch(o2);
-        if (mismatch == -1) {
-            return 0;
+        if (fileChannel.size() < position + keySize) {
+            throw new IllegalArgumentException("Out of size position.");
         }
 
-        byte byteAtOffset1 = MemoryAccess.getByteAtOffset(o1, mismatch);
-        byte byteAtOffset2 = MemoryAccess.getByteAtOffset(o2, mismatch);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(keySize);
+        fileChannel.read(byteBuffer, position);
+        byteBuffer.position(0);
 
-        return byteAtOffset1 < byteAtOffset2 ? -1 : 1;
-    };
+        return byteBuffer;
+    }
+
+    public static int readInt(FileChannel fileChannel, long position) throws IOException {
+        if (!fileChannel.isOpen()) {
+            throw new IllegalStateException("File channel is closed");
+        }
+
+        if (fileChannel.size() < position + Integer.BYTES) {
+            throw new IllegalArgumentException("Out of size position.");
+        }
+
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+        fileChannel.read(buffer, position);
+        buffer.flip();
+
+        return buffer.getInt();
+    }
 }

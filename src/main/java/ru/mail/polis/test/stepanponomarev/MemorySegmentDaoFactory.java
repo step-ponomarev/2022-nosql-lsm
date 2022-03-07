@@ -1,46 +1,43 @@
 package ru.mail.polis.test.stepanponomarev;
 
-import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
+import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.ComparableMemorySegmentWrapper;
 import ru.mail.polis.stepanponomarev.LmsDao;
 import ru.mail.polis.test.DaoFactory;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 
-@DaoFactory
-public class MemorySegmentDaoFactory implements DaoFactory.Factory<MemorySegment, Entry<MemorySegment>> {
+@DaoFactory(stage = 2)
+public class MemorySegmentDaoFactory implements DaoFactory.Factory<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
 
     @Override
-    public Dao<MemorySegment, Entry<MemorySegment>> createDao() {
-        return new LmsDao();
+    public Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> createDao(Config config) throws IOException {
+        return new LmsDao(config.basePath());
     }
 
     @Override
-    public String toString(MemorySegment data) {
+    public String toString(ComparableMemorySegmentWrapper data) {
         if (data == null) {
             return null;
         }
 
-        if (data.byteSize() == 0) {
+        if (data.getMemorySegment().byteSize() == 0) {
             throw new IllegalArgumentException("Buffer should have array");
         }
 
-        return new String(data.toByteArray(), StandardCharsets.UTF_8);
+        return data.toString();
     }
 
     @Override
-    public MemorySegment fromString(String data) {
-        if (data == null) {
-            return null;
-        }
-
-        return MemorySegment.ofArray(data.getBytes(StandardCharsets.UTF_8));
+    public ComparableMemorySegmentWrapper fromString(String data) {
+        return ComparableMemorySegmentWrapper.from(data);
     }
 
     @Override
-    public Entry<MemorySegment> fromBaseEntry(Entry<MemorySegment> entry) {
+    public Entry<ComparableMemorySegmentWrapper> fromBaseEntry(Entry<ComparableMemorySegmentWrapper> entry) {
         return new BaseEntry<>(entry.key(), entry.value());
     }
 }

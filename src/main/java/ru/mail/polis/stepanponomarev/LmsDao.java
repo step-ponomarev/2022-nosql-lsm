@@ -1,18 +1,24 @@
 package ru.mail.polis.stepanponomarev;
 
-import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class LmsDao implements Dao<MemorySegment, Entry<MemorySegment>> {
-    private final SortedMap<MemorySegment, Entry<MemorySegment>> memTable = new ConcurrentSkipListMap<>(Utils.MEMORY_SEGMENT_COMPARATOR);
+public class LmsDao implements Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
+    private final SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> memTable = new ConcurrentSkipListMap<>();
+    private final Log log;
+
+    public LmsDao(Path path) throws IOException {
+        log = new Log(path);
+    }
 
     @Override
-    public Iterator<Entry<MemorySegment>> get(MemorySegment from, MemorySegment to) {
+    public Iterator<Entry<ComparableMemorySegmentWrapper>> get(ComparableMemorySegmentWrapper from, ComparableMemorySegmentWrapper to) {
         if (from == null && to == null) {
             return memTable.values().iterator();
         }
@@ -29,11 +35,16 @@ public class LmsDao implements Dao<MemorySegment, Entry<MemorySegment>> {
     }
 
     @Override
-    public void upsert(Entry<MemorySegment> entry) {
+    public void upsert(Entry<ComparableMemorySegmentWrapper> entry) {
         if (entry == null) {
             throw new NullPointerException("Entry can't be null");
         }
 
         memTable.put(entry.key(), entry);
+    }
+
+    @Override
+    public void close() throws IOException {
+
     }
 }
