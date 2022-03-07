@@ -4,7 +4,7 @@ import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.InMemoryDao;
+import ru.mail.polis.stepanponomarev.LmsDao;
 import ru.mail.polis.test.DaoFactory;
 
 import java.nio.charset.StandardCharsets;
@@ -14,7 +14,7 @@ public class MemorySegmentDaoFactory implements DaoFactory.Factory<MemorySegment
 
     @Override
     public Dao<MemorySegment, Entry<MemorySegment>> createDao() {
-        return new InMemoryDao();
+        return new LmsDao();
     }
 
     @Override
