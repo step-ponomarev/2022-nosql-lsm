@@ -14,7 +14,7 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
-    private final String SSTABLE_DIR_NAME = "table";
+    private static final String SSTABLE_DIR_NAME = "table";
 
     private final Path path;
     private final List<SSTable> ssTables;
