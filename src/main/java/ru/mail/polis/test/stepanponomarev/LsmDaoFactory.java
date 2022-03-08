@@ -25,11 +25,10 @@ public class LsmDaoFactory implements DaoFactory.Factory<ByteBuffer, Entry<ByteB
             return null;
         }
 
-        if (data.array().length == 0) {
-            throw new IllegalArgumentException("Buffer should have array");
-        }
+        byte[] bytes = new byte[data.remaining()];
+        data.get(bytes);
 
-        return new String(data.array(), StandardCharsets.UTF_8);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     @Override

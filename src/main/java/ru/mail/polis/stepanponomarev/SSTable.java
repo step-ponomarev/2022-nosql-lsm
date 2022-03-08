@@ -1,21 +1,23 @@
 package ru.mail.polis.stepanponomarev;
 
-import jdk.incubator.foreign.MemorySegment;
-import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public class SSTable {
+    public static final int TOMBSTONE_TAG = -1;
+
     private static final String fileName = "ss.table";
 
     private final Path path;
@@ -25,60 +27,53 @@ public class SSTable {
     }
 
     public void flush(Iterator<Entry<ByteBuffer>> data) throws IOException {
-        try (final FileChannel fileChannel = FileChannel.open(getFilePath(), FileChannelUtils.APPEND_OPEN_OPTIONS)) {
+        try (final FileChannel fileChannel = FileChannel.open(path.resolve(fileName), FileChannelUtils.APPEND_OPEN_OPTIONS)) {
             while (data.hasNext()) {
                 final Entry<ByteBuffer> entry = data.next();
 
                 ByteBuffer key = entry.key();
-                int keySize = key.remaining();
-
-                fileChannel.write(Utils.toByteBuffer(keySize));
-                fileChannel.write(key);
 
                 ByteBuffer value = entry.value() == null ? null : entry.value();
-                int valueSize = value == null ? Utils.TOMBSTONE_TAG : value.remaining();
+                int valueSize = value == null ? TOMBSTONE_TAG : value.remaining();
 
-                fileChannel.write(Utils.toByteBuffer(valueSize));
-                if (value == null) {
-                    continue;
+                ByteBuffer buffer = ByteBuffer.allocate(key.remaining() + Integer.BYTES * 2 + (value == null ? 0 : value.remaining()));
+                buffer.put(toByteBuffer(key.remaining()));
+                buffer.put(key);
+                buffer.put(toByteBuffer(valueSize));
+                if (value != null) {
+                    buffer.put(value);
                 }
-                fileChannel.write(value);
+                buffer.flip();
+
+                fileChannel.write(buffer);
             }
         }
     }
 
     public Iterator<Entry<ByteBuffer>> get() throws IOException {
-        final Path filePath = getFilePath();
-
+        final Path filePath = path.resolve(fileName);
         if (!filePath.toFile().exists()) {
             return Collections.emptyIterator();
         }
 
-        final SortedMap<ByteBuffer, Entry<ByteBuffer>> data = new TreeMap<>();
-
+        final SortedMap<ByteBuffer, Entry<ByteBuffer>> data = new ConcurrentSkipListMap<>();
         try (final FileChannel fileChannel = FileChannel.open(filePath, FileChannelUtils.READ_OPEN_OPTIONS)) {
-            final MemorySegment memorySegment = MemorySegment.mapFile(filePath, 0, fileChannel.size(), FileChannel.MapMode.READ_ONLY, ResourceScope.newSharedScope());
-            final long size = memorySegment.byteSize();
+            MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
 
-            long position = 0;
-            while (position != size) {
-                int keySize = memorySegment.asSlice(position, Integer.BYTES).asByteBuffer().getInt();
-                position += Integer.BYTES;
+            final long size = fileChannel.size();
+            while (mappedByteBuffer.position() != size) {
+                int keySize = mappedByteBuffer.getInt();
+                final ByteBuffer key = mappedByteBuffer.slice(mappedByteBuffer.position(), keySize);
+                mappedByteBuffer.position(mappedByteBuffer.position() + keySize);
 
-                ByteBuffer key = memorySegment.asSlice(position, keySize).asByteBuffer();
-                position += keySize;
-
-                int valueSize = memorySegment.asSlice(position, Integer.BYTES).asByteBuffer().getInt();
-                position += Integer.BYTES;
-
-                if (valueSize == Utils.TOMBSTONE_TAG) {
+                int valueSize = mappedByteBuffer.getInt();
+                if (valueSize == TOMBSTONE_TAG) {
                     data.remove(key);
                     continue;
                 }
 
-                ByteBuffer value = memorySegment.asSlice(position, valueSize).asByteBuffer();
-                position += valueSize;
-
+                final ByteBuffer value = mappedByteBuffer.slice(mappedByteBuffer.position(), valueSize);
+                mappedByteBuffer.position(mappedByteBuffer.position() + valueSize);
                 data.put(key, new BaseEntry<>(
                         key,
                         value
@@ -89,7 +84,7 @@ public class SSTable {
         return data.values().iterator();
     }
 
-    private Path getFilePath() {
-        return new File(path.toAbsolutePath() + "/" + fileName).toPath();
+    private static ByteBuffer toByteBuffer(int num) {
+        return ByteBuffer.wrap(ByteBuffer.allocate(Integer.BYTES).putInt(num).array());
     }
 }
