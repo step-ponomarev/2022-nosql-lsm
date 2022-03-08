@@ -17,18 +17,18 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     private static final String SSTABLE_DIR_NAME = "table";
 
     private final Path path;
-    private final List<SSTable> SSTables;
+    private final List<SSTable> ssTalbes;
     private final SortedMap<ByteBuffer, Entry<ByteBuffer>> memTable = new ConcurrentSkipListMap<>();
 
     public LsmDao(Path bathPath) throws IOException {
         path = bathPath;
-        SSTables = createSSTables(path);
+        ssTalbes = createSSTables(path);
     }
 
     @Override
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
         List<Iterator<Entry<ByteBuffer>>> iterators = new ArrayList<>();
-        for (SSTable table : SSTables) {
+        for (SSTable table : ssTalbes) {
             iterators.add(table.get(from, to));
         }
 
@@ -52,13 +52,13 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
     public void flush() throws IOException {
-        final Path ssTableDir = path.resolve(SSTABLE_DIR_NAME + SSTables.size());
+        final Path ssTableDir = path.resolve(SSTABLE_DIR_NAME + ssTalbes.size());
         Files.createDirectory(ssTableDir);
 
         final SSTable ssTable = new SSTable(ssTableDir);
         ssTable.flush(memTable.values().iterator());
 
-        SSTables.add(ssTable);
+        ssTalbes.add(ssTable);
         memTable.clear();
     }
 
