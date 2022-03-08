@@ -7,33 +7,35 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     private final SSTable ssTable;
-    private final SortedMap<ByteBuffer, Entry<ByteBuffer>> memTable;
+    private final SortedMap<ByteBuffer, Entry<ByteBuffer>> memTable = new ConcurrentSkipListMap<>();
 
     public LsmDao(Path path) throws IOException {
         ssTable = new SSTable(path);
-        memTable = createMemTable();
     }
 
     @Override
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
+        Iterator<Entry<ByteBuffer>> entryIterator = ssTable.get(from, to);
+
         if (from == null && to == null) {
-            return memTable.values().iterator();
+            return MergeIterator.instanceOf(List.of(entryIterator, memTable.values().iterator()));
         }
 
         if (from == null) {
-            return memTable.headMap(to).values().iterator();
+            return MergeIterator.instanceOf(List.of(entryIterator, memTable.headMap(to).values().iterator()));
         }
 
         if (to == null) {
-            return memTable.tailMap(from).values().iterator();
+            return MergeIterator.instanceOf(List.of(entryIterator, memTable.tailMap(from).values().iterator()));
         }
 
-        return memTable.subMap(from, to).values().iterator();
+        return MergeIterator.instanceOf(List.of(entryIterator, memTable.subMap(from, to).values().iterator()));
     }
 
     @Override
@@ -48,18 +50,5 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     @Override
     public void flush() throws IOException {
         ssTable.flush(memTable.values().iterator());
-    }
-
-    private SortedMap<ByteBuffer, Entry<ByteBuffer>> createMemTable() throws IOException {
-        final SortedMap<ByteBuffer, Entry<ByteBuffer>> data = new ConcurrentSkipListMap<>();
-
-        Iterator<Entry<ByteBuffer>> entryIterator = ssTable.get();
-        while (entryIterator.hasNext()) {
-            Entry<ByteBuffer> entry = entryIterator.next();
-
-            data.put(entry.key(), entry);
-        }
-
-        return data;
     }
 }

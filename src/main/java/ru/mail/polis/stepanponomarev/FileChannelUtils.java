@@ -15,6 +15,11 @@ final class FileChannelUtils {
             StandardOpenOption.WRITE
     );
 
+    public static final EnumSet<StandardOpenOption> WRITE_OPEN_OPTIONS = EnumSet.of(
+            StandardOpenOption.CREATE,
+            StandardOpenOption.WRITE
+    );
+
     public static final EnumSet<StandardOpenOption> READ_OPEN_OPTIONS = EnumSet.of(
             StandardOpenOption.READ
     );

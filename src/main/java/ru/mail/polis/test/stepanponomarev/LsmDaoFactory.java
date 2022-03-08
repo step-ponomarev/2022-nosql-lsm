@@ -25,8 +25,9 @@ public class LsmDaoFactory implements DaoFactory.Factory<ByteBuffer, Entry<ByteB
             return null;
         }
 
-        byte[] bytes = new byte[data.remaining()];
-        data.get(bytes);
+        ByteBuffer duplicate = data.duplicate();
+        byte[] bytes = new byte[duplicate.remaining()];
+        duplicate.get(bytes);
 
         return new String(bytes, StandardCharsets.UTF_8);
     }
