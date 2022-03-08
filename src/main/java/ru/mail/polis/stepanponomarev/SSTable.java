@@ -10,6 +10,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -44,54 +45,20 @@ public class SSTable {
     }
 
     public void flush(Iterator<Entry<ByteBuffer>> data) throws IOException {
-        final SortedMap<ByteBuffer, Integer> memIndex = new TreeMap<>();
-
+        final SortedMap<ByteBuffer, Integer> updatedIndex = new TreeMap<>();
         try (FileChannel fileChannel = FileChannel.open(path.resolve(DATA_FILE_NAME), APPEND_OPEN_OPTIONS)) {
             while (data.hasNext()) {
                 final Entry<ByteBuffer> entry = data.next();
-
-                ByteBuffer key = entry.key();
                 //TODO: косяк...
-                memIndex.put(key, (int) fileChannel.position());
-
-                ByteBuffer value = entry.value() == null ? null : entry.value();
-                int valueSize = value == null ? TOMBSTONE_TAG : value.remaining();
-
-                ByteBuffer buffer = ByteBuffer.allocate(
-                        key.remaining() + Integer.BYTES * 2 + (value == null ? 0 : value.remaining())
-                );
-
-                buffer.put(toByteBuffer(key.remaining()));
-                buffer.put(key);
-                buffer.put(toByteBuffer(valueSize));
-                if (value != null) {
-                    buffer.put(value);
-                }
-                buffer.flip();
-
-                fileChannel.write(buffer);
+                updatedIndex.put(entry.key(), (int) fileChannel.position());
+                fileChannel.write(toByteBuffer(entry));
             }
         }
 
-        flushMemIndex(memIndex);
-    }
+        final SortedMap<ByteBuffer, Integer> index = loadIndex();
+        index.putAll(updatedIndex);
 
-    private void flushMemIndex(SortedMap<ByteBuffer, Integer> index) throws IOException {
-        SortedMap<ByteBuffer, Integer> byteBufferIntegerSortedMap = loadMemIndex();
-        byteBufferIntegerSortedMap.putAll(index);
-
-        Path fileIndexPath = path.resolve(INDEX_FILE_NAME);
-        Files.deleteIfExists(fileIndexPath);
-
-        final ByteBuffer indexes = ByteBuffer.allocate(byteBufferIntegerSortedMap.values().size() * Integer.BYTES);
-        for (int pos : byteBufferIntegerSortedMap.values()) {
-            indexes.putInt(pos);
-        }
-        indexes.flip();
-
-        try (FileChannel indexFC = FileChannel.open(fileIndexPath, WRITE_OPEN_OPTIONS)) {
-            indexFC.write(indexes);
-        }
+        rewriteIndex(index.values());
     }
 
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
@@ -102,11 +69,11 @@ public class SSTable {
         }
 
         final SortedMap<ByteBuffer, Entry<ByteBuffer>> data = new TreeMap<>();
-        try (FileChannel fileChannel = FileChannel.open(dataPath, READ_OPEN_OPTIONS);
+        try (FileChannel dataFC = FileChannel.open(dataPath, READ_OPEN_OPTIONS);
              FileChannel indexFC = FileChannel.open(indexPath, READ_OPEN_OPTIONS)
         ) {
-            MappedByteBuffer dataMB = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
-            MappedByteBuffer indexMB = indexFC.map(FileChannel.MapMode.READ_ONLY, 0, indexFC.size());
+            final MappedByteBuffer dataMB = dataFC.map(FileChannel.MapMode.READ_ONLY, 0, dataFC.size());
+            final MappedByteBuffer indexMB = indexFC.map(FileChannel.MapMode.READ_ONLY, 0, indexFC.size());
 
             final long size = indexFC.size();
             while (indexMB.position() != size) {
@@ -130,6 +97,17 @@ public class SSTable {
         return data.values().iterator();
     }
 
+    private void rewriteIndex(Collection<Integer> positions) throws IOException {
+        //TODO: Костыль чтобы не делать кучу SSTable
+        final Path fileIndexPath = path.resolve(INDEX_FILE_NAME);
+        Files.deleteIfExists(fileIndexPath);
+
+        final ByteBuffer buffer = toByteBuffer(positions);
+        try (FileChannel indexFC = FileChannel.open(fileIndexPath, WRITE_OPEN_OPTIONS)) {
+            indexFC.write(buffer);
+        }
+    }
+
     private boolean isSymmetricValues(ByteBuffer from, ByteBuffer key, ByteBuffer to) {
         if (from == null && to == null) {
             return true;
@@ -146,14 +124,14 @@ public class SSTable {
         return key.compareTo(from) >= 0 && key.compareTo(to) < 0;
     }
 
-    private SortedMap<ByteBuffer, Integer> loadMemIndex() throws IOException {
+    private SortedMap<ByteBuffer, Integer> loadIndex() throws IOException {
         final Path indexFilePath = path.resolve(INDEX_FILE_NAME);
         final Path dataFilePath = path.resolve(DATA_FILE_NAME);
         if (Files.notExists(indexFilePath) || Files.notExists(dataFilePath)) {
             return new TreeMap<>();
         }
 
-        final SortedMap<ByteBuffer, Integer> indexMap = new TreeMap<>();
+        final SortedMap<ByteBuffer, Integer> index = new TreeMap<>();
         try (FileChannel indexFC = FileChannel.open(indexFilePath, READ_OPEN_OPTIONS);
              FileChannel dataFC = FileChannel.open(dataFilePath, READ_OPEN_OPTIONS)
         ) {
@@ -165,14 +143,44 @@ public class SSTable {
                 int keyPosition = indexMB.getInt();
 
                 int keySize = fileMB.position(keyPosition).getInt();
-                MappedByteBuffer key = fileMB.slice(fileMB.position(), keySize);
+                ByteBuffer key = fileMB.slice(fileMB.position(), keySize);
                 key.flip();
 
-                indexMap.put(key, keyPosition);
+                index.put(key, keyPosition);
             }
         }
 
-        return indexMap;
+        return index;
+    }
+
+    private static ByteBuffer toByteBuffer(Entry<ByteBuffer> entry) {
+        final ByteBuffer key = entry.key();
+        final ByteBuffer value = entry.value() == null ? null : entry.value();
+        final int valueSize = value == null ? TOMBSTONE_TAG : value.remaining();
+
+        final ByteBuffer buffer = ByteBuffer.allocate(
+                key.remaining() + Integer.BYTES * 2 + (value == null ? 0 : value.remaining())
+        );
+
+        buffer.put(toByteBuffer(key.remaining()));
+        buffer.put(key);
+        buffer.put(toByteBuffer(valueSize));
+        if (value != null) {
+            buffer.put(value);
+        }
+        buffer.flip();
+
+        return buffer;
+    }
+
+    private static ByteBuffer toByteBuffer(Collection<Integer> positions) {
+        final ByteBuffer buffer = ByteBuffer.allocate(positions.size() * Integer.BYTES);
+        for (int pos : positions) {
+            buffer.putInt(pos);
+        }
+        buffer.flip();
+
+        return buffer;
     }
 
     private static ByteBuffer toByteBuffer(int num) {
