@@ -7,14 +7,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>> {
-    private final Iterator<Entry<T>> firstIter;
-    private final Iterator<Entry<T>> secondIter;
+final class MergeIterator<T extends Comparable<T>, E extends Entry<T>> implements Iterator<E> {
+    private final Iterator<E> firstIter;
+    private final Iterator<E> secondIter;
 
-    private Entry<T> firstRecord;
-    private Entry<T> secondRecord;
+    private E firstRecord;
+    private E secondRecord;
 
-    private MergeIterator(final Iterator<Entry<T>> left, final Iterator<Entry<T>> right) {
+    private MergeIterator(final Iterator<E> left, final Iterator<E> right) {
         firstIter = right;
         secondIter = left;
 
@@ -22,7 +22,7 @@ final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>>
         secondRecord = getElement(secondIter);
     }
 
-    public static <T extends Comparable<T>> Iterator<Entry<T>> instanceOf(List<Iterator<Entry<T>>> iterators) {
+    public static <T extends Comparable<T>, E extends Entry<T>> Iterator<E> instanceOf(List<Iterator<E>> iterators) {
         if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
@@ -38,7 +38,7 @@ final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>>
         );
     }
 
-    private static <T extends Comparable<T>> Iterator<Entry<T>> merge(Iterator<Entry<T>> l, Iterator<Entry<T>> r) {
+    private static <T extends Comparable<T>, E extends Entry<T>> Iterator<E> merge(Iterator<E> l, Iterator<E> r) {
         return new MergeIterator<>(l, r);
     }
 
@@ -48,13 +48,13 @@ final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>>
     }
 
     @Override
-    public Entry<T> next() {
+    public E next() {
         if (!hasNext()) {
             throw new NoSuchElementException("No Such Element");
         }
 
         final int compareResult = compare(firstRecord, secondRecord);
-        final Entry<T> next = compareResult > 0
+        final E next = compareResult > 0
                 ? secondRecord
                 : firstRecord;
 
@@ -74,7 +74,7 @@ final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>>
         return next;
     }
 
-    private int compare(Entry<T> r1, Entry<T> r2) {
+    private int compare(E r1, E r2) {
         if (r1 == null) {
             return 1;
         }
@@ -86,7 +86,7 @@ final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>>
         return r1.key().compareTo(r2.key());
     }
 
-    private Entry<T> getElement(final Iterator<Entry<T>> iter) {
+    private E getElement(final Iterator<E> iter) {
         return iter.hasNext() ? iter.next() : null;
     }
 }
