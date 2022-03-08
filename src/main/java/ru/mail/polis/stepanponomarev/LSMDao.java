@@ -8,42 +8,53 @@ import ru.mail.polis.Entry;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
 
-public class LmsDao implements Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
-    private static final long maxSizeByte = 50_000;
+public class LSMDao implements Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
+    private static final long maxSizeByte = 500_000_000;
 
     private final Logger logger;
+    private final SSTable ssTable;
     private final SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> memTable;
 
     private long currentSize;
 
-    public LmsDao(Path path) throws IOException {
+    public LSMDao(Path path) throws IOException {
         logger = new Logger(path);
+        ssTable = new SSTable(path);
         memTable = createMemTable();
         currentSize = sizeOf(memTable.values());
     }
 
     @Override
-    public Iterator<Entry<ComparableMemorySegmentWrapper>> get(ComparableMemorySegmentWrapper from, ComparableMemorySegmentWrapper to) {
+    public Iterator<Entry<ComparableMemorySegmentWrapper>> get(ComparableMemorySegmentWrapper from, ComparableMemorySegmentWrapper to) throws IOException {
+        final Iterator<Entry<ComparableMemorySegmentWrapper>> sstableIterator = ssTable.get(from, to);
+
         if (from == null && to == null) {
-            return memTable.values().iterator();
+            return MergeIterator.instanceOf(List.of(sstableIterator, memTable.values().iterator()));
         }
 
         if (from == null) {
-            return memTable.headMap(to).values().iterator();
+            return MergeIterator.instanceOf(List.of(sstableIterator, memTable.headMap(to).values().iterator()));
         }
 
         if (to == null) {
-            return memTable.tailMap(from).values().iterator();
+            return MergeIterator.instanceOf(List.of(sstableIterator, memTable.tailMap(from).values().iterator()));
         }
 
-        return memTable.subMap(from, to).values().iterator();
+        return MergeIterator.instanceOf(List.of(sstableIterator, memTable.subMap(from, to).values().iterator()));
+    }
+
+    @Override
+    public Entry<ComparableMemorySegmentWrapper> get(ComparableMemorySegmentWrapper key) throws IOException {
+        Entry<ComparableMemorySegmentWrapper> comparableMemorySegmentWrapperEntry = memTable.get(key);
+        if (comparableMemorySegmentWrapperEntry != null) {
+            return comparableMemorySegmentWrapperEntry;
+        }
+
+        return ssTable.get(key);
     }
 
     @Override
@@ -58,7 +69,9 @@ public class LmsDao implements Dao<ComparableMemorySegmentWrapper, Entry<Compara
 
             currentSize += sizeOf(entry);
             if (currentSize >= maxSizeByte) {
-                logger.clean();
+                ssTable.flush(memTable.values().iterator());
+                logger.clear();
+                memTable.clear();
                 currentSize = 0;
             }
         } catch (IOException e) {
@@ -80,7 +93,7 @@ public class LmsDao implements Dao<ComparableMemorySegmentWrapper, Entry<Compara
         return loadedData.entrySet()
                 .stream()
                 .map(this::convert)
-                .collect(Collectors.toMap(Entry::key, e-> e, (o1, o2) -> o1, ConcurrentSkipListMap::new));
+                .collect(Collectors.toMap(Entry::key, e -> e, (o1, o2) -> o1, ConcurrentSkipListMap::new));
     }
 
     private long sizeOf(Collection<Entry<ComparableMemorySegmentWrapper>> values) {
