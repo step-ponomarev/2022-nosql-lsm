@@ -3,15 +3,6 @@ package ru.mail.polis.stepanponomarev;
 import jdk.incubator.foreign.MemorySegment;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import java.io.File;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Comparator;
 
 public class ComparableMemorySegmentWrapperTest {
@@ -42,38 +33,5 @@ public class ComparableMemorySegmentWrapperTest {
                 ComparableMemorySegmentWrapper.from(str),
                 ComparableMemorySegmentWrapper.from(str)
         );
-    }
-
-    @Test
-    public void testCompareAfterReading() throws URISyntaxException, IOException {
-        final File dir = new File(Path.of(LoggerTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath() + "/testFiles");
-        dir.mkdir();
-        final Path path = new File(dir.getAbsolutePath() + "/test.file").toPath();
-
-        final MemorySegment minValueMemorySegment = ComparableMemorySegmentWrapper.from("key").getMemorySegment();
-        ByteBuffer byteBuffer = minValueMemorySegment.asByteBuffer();
-
-        try  {
-            try(FileChannel fileChannel = FileChannel.open(path, new StandardOpenOption[]{StandardOpenOption.WRITE, StandardOpenOption.CREATE})) {
-                fileChannel.write(byteBuffer);
-            }
-
-            try(FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.READ)) {
-                ByteBuffer bb = ByteBuffer.allocate((int) fileChannel.size());
-                fileChannel.read(bb);
-
-                Assertions.assertEquals(byteBuffer, bb);
-                Assertions.assertEquals(
-                        new ComparableMemorySegmentWrapper(MemorySegment.ofByteBuffer(byteBuffer)),
-                        new ComparableMemorySegmentWrapper(MemorySegment.ofByteBuffer(bb)));
-
-            }
-        } finally {
-            Files.walk(dir.toPath())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
-
-            dir.delete();
-        }
     }
 }
