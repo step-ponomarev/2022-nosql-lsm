@@ -22,7 +22,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
 
     public LsmDao(Path bathPath) throws IOException {
         path = bathPath;
-        ssTables = createSsTables(path);
+        ssTables = createSSTables(path);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
         memTable.clear();
     }
 
-    private List<SSTable> createSsTables(Path path) throws IOException {
+    private List<SSTable> createSSTables(Path path) throws IOException {
         if (Files.notExists(path)) {
             return new ArrayList<>();
         }
