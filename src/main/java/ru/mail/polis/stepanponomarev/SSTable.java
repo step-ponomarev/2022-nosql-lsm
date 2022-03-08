@@ -29,42 +29,40 @@ public class SSTable {
             StandardOpenOption.WRITE
     );
 
-    private static final EnumSet<StandardOpenOption> WRITE_OPEN_OPTIONS = EnumSet.of(
-            StandardOpenOption.CREATE,
-            StandardOpenOption.WRITE
-    );
-
     private static final EnumSet<StandardOpenOption> READ_OPEN_OPTIONS = EnumSet.of(
             StandardOpenOption.READ
     );
 
-    private final Path path;
+    private final Path indexPath;
+    private final Path dataPath;
 
-    public SSTable(Path basePath) {
-        path = basePath;
+    public SSTable(Path path) throws IOException {
+        indexPath = path.resolve(INDEX_FILE_NAME);
+        dataPath = path.resolve(DATA_FILE_NAME);
+
+        if (Files.notExists(indexPath) || Files.notExists(dataPath)) {
+            Files.createFile(indexPath);
+            Files.createFile(dataPath);
+        }
     }
 
     public void flush(Iterator<Entry<ByteBuffer>> data) throws IOException {
-        final SortedMap<ByteBuffer, Integer> updatedIndex = new TreeMap<>();
-        try (FileChannel fileChannel = FileChannel.open(path.resolve(DATA_FILE_NAME), APPEND_OPEN_OPTIONS)) {
+        final SortedMap<ByteBuffer, Integer> indexMap = new TreeMap<>();
+        try (FileChannel fileChannel = FileChannel.open(dataPath, APPEND_OPEN_OPTIONS)) {
             while (data.hasNext()) {
                 final Entry<ByteBuffer> entry = data.next();
                 //TODO: косяк...
-                updatedIndex.put(entry.key(), (int) fileChannel.position());
+                indexMap.put(entry.key(), (int) fileChannel.position());
                 fileChannel.write(toByteBuffer(entry));
             }
         }
 
-        final SortedMap<ByteBuffer, Integer> index = loadIndex();
-        index.putAll(updatedIndex);
-
-        rewriteIndex(index.values());
+        flushIndex(indexMap.values());
     }
 
+    //TODO: Бинарный поиск допилить
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
-        final Path dataPath = path.resolve(DATA_FILE_NAME);
-        final Path indexPath = path.resolve(INDEX_FILE_NAME);
-        if (!dataPath.toFile().exists() || !indexPath.toFile().exists()) {
+        if (Files.size(indexPath) == 0) {
             return Collections.emptyIterator();
         }
 
@@ -75,7 +73,7 @@ public class SSTable {
             final MappedByteBuffer dataMB = dataFC.map(FileChannel.MapMode.READ_ONLY, 0, dataFC.size());
             final MappedByteBuffer indexMB = indexFC.map(FileChannel.MapMode.READ_ONLY, 0, indexFC.size());
 
-            final long size = indexFC.size();
+            final long size = indexMB.remaining();
             while (indexMB.position() != size) {
                 int keyPosition = indexMB.getInt();
                 int keySize = dataMB.position(keyPosition).getInt();
@@ -97,13 +95,9 @@ public class SSTable {
         return data.values().iterator();
     }
 
-    private void rewriteIndex(Collection<Integer> positions) throws IOException {
-        //TODO: Костыль чтобы не делать кучу SSTable
-        final Path fileIndexPath = path.resolve(INDEX_FILE_NAME);
-        Files.deleteIfExists(fileIndexPath);
-
+    private void flushIndex(Collection<Integer> positions) throws IOException {
         final ByteBuffer buffer = toByteBuffer(positions);
-        try (FileChannel indexFC = FileChannel.open(fileIndexPath, WRITE_OPEN_OPTIONS)) {
+        try (FileChannel indexFC = FileChannel.open(indexPath, APPEND_OPEN_OPTIONS)) {
             indexFC.write(buffer);
         }
     }
@@ -122,35 +116,6 @@ public class SSTable {
         }
 
         return key.compareTo(from) >= 0 && key.compareTo(to) < 0;
-    }
-
-    private SortedMap<ByteBuffer, Integer> loadIndex() throws IOException {
-        final Path indexFilePath = path.resolve(INDEX_FILE_NAME);
-        final Path dataFilePath = path.resolve(DATA_FILE_NAME);
-        if (Files.notExists(indexFilePath) || Files.notExists(dataFilePath)) {
-            return new TreeMap<>();
-        }
-
-        final SortedMap<ByteBuffer, Integer> index = new TreeMap<>();
-        try (FileChannel indexFC = FileChannel.open(indexFilePath, READ_OPEN_OPTIONS);
-             FileChannel dataFC = FileChannel.open(dataFilePath, READ_OPEN_OPTIONS)
-        ) {
-            MappedByteBuffer indexMB = indexFC.map(FileChannel.MapMode.READ_ONLY, 0, indexFC.size());
-            MappedByteBuffer fileMB = dataFC.map(FileChannel.MapMode.READ_ONLY, 0, dataFC.size());
-
-            final long size = indexFC.size();
-            while (indexMB.position() < size) {
-                int keyPosition = indexMB.getInt();
-
-                int keySize = fileMB.position(keyPosition).getInt();
-                ByteBuffer key = fileMB.slice(fileMB.position(), keySize);
-                key.flip();
-
-                index.put(key, keyPosition);
-            }
-        }
-
-        return index;
     }
 
     private static ByteBuffer toByteBuffer(Entry<ByteBuffer> entry) {

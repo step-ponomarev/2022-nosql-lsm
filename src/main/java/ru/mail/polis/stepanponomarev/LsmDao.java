@@ -5,37 +5,44 @@ import ru.mail.polis.Entry;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
-    private final SSTable ssTable;
+    private final String SS_TABLE_DIR_NAME = "table";
+
+    private final Path path;
+    private final List<SSTable> ssTables;
     private final SortedMap<ByteBuffer, Entry<ByteBuffer>> memTable = new ConcurrentSkipListMap<>();
 
-    public LsmDao(Path path) {
-        ssTable = new SSTable(path);
+    public LsmDao(Path bathPath) throws IOException {
+        path = bathPath;
+        ssTables = createSsTables(path);
     }
 
     @Override
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
-        Iterator<Entry<ByteBuffer>> entryIterator = ssTable.get(from, to);
+        List<Iterator<Entry<ByteBuffer>>> iterators = new ArrayList<>();
+        for (SSTable table : ssTables) {
+            iterators.add(table.get(from, to));
+        }
 
         if (from == null && to == null) {
-            return MergeIterator.instanceOf(List.of(entryIterator, memTable.values().iterator()));
+            iterators.add(memTable.values().iterator());
+        } else if (from == null) {
+            iterators.add(memTable.headMap(to).values().iterator());
+        } else if (to == null) {
+            iterators.add(memTable.tailMap(from).values().iterator());
+        } else {
+            iterators.add(memTable.subMap(from, to).values().iterator());
         }
 
-        if (from == null) {
-            return MergeIterator.instanceOf(List.of(entryIterator, memTable.headMap(to).values().iterator()));
-        }
-
-        if (to == null) {
-            return MergeIterator.instanceOf(List.of(entryIterator, memTable.tailMap(from).values().iterator()));
-        }
-
-        return MergeIterator.instanceOf(List.of(entryIterator, memTable.subMap(from, to).values().iterator()));
+        return MergeIterator.instanceOf(iterators);
     }
 
     @Override
@@ -45,6 +52,28 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
     public void flush() throws IOException {
+        final Path ssTableDir = path.resolve(SS_TABLE_DIR_NAME + ssTables.size());
+        Files.createDirectory(ssTableDir);
+
+        final SSTable ssTable = new SSTable(ssTableDir);
         ssTable.flush(memTable.values().iterator());
+
+        ssTables.add(ssTable);
+        memTable.clear();
+    }
+
+    private List<SSTable> createSsTables(Path path) throws IOException {
+        if (Files.notExists(path)) {
+            return new ArrayList<>();
+        }
+
+        final String[] dirList = path.toFile().list();
+        final int ssTableAmount = dirList == null ? 0 : dirList.length;
+        final List<SSTable> tables = new ArrayList<>(ssTableAmount);
+        for (int i = 0; i < ssTableAmount; i++) {
+            tables.add(new SSTable(path.resolve(SS_TABLE_DIR_NAME + i)));
+        }
+
+        return tables;
     }
 }
