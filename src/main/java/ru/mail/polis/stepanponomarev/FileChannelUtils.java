@@ -3,32 +3,25 @@ package ru.mail.polis.stepanponomarev;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
+import java.nio.file.StandardOpenOption;
 
-class FileChannelUtils {
+final class FileChannelUtils {
     private FileChannelUtils() {}
 
-    public static void append(FileChannel fileChannel, ByteBuffer keySrc, ByteBuffer valueSrc, int tombstoneTag) throws IOException {
-        if (!fileChannel.isOpen()) {
-            throw new IllegalStateException("FileChannel should be opened.");
-        }
+    public static final OpenOption[] WRITE_OPEN_OPTIONS = {
+            StandardOpenOption.WRITE,
+            StandardOpenOption.CREATE,
+    };
 
-        if (keySrc == null) {
-            throw new NullPointerException("Key can't be null.");
-        }
+    public static final OpenOption[] APPEND_OPEN_OPTIONS = {
+            StandardOpenOption.APPEND,
+            StandardOpenOption.CREATE,
+    };
 
-        ByteBuffer key = keySrc.duplicate();
-        ByteBuffer value = valueSrc == null ? null : valueSrc.duplicate();
-        ByteBuffer[] byteBuffers = {
-                Utils.toByteBuffer(key.remaining()),
-                key,
-                value == null ? Utils.toByteBuffer(tombstoneTag) : Utils.toByteBuffer(value.remaining())
-        };
-
-        fileChannel.write(byteBuffers);
-        if (value != null) {
-            fileChannel.write(value);
-        }
-    }
+    public static final OpenOption[] READ_OPEN_OPTIONS = {
+            StandardOpenOption.READ
+    };
 
     public static ByteBuffer readByteBuffer(FileChannel fileChannel, long position, int keySize) throws IOException {
         if (!fileChannel.isOpen()) {
@@ -39,11 +32,11 @@ class FileChannelUtils {
             throw new IllegalArgumentException("Out of size position.");
         }
 
-        ByteBuffer byteBuffer = ByteBuffer.allocate(keySize);
-        fileChannel.read(byteBuffer, position);
-        byteBuffer.position(0);
+        ByteBuffer buffer = ByteBuffer.allocate(keySize);
+        fileChannel.read(buffer, position);
+        buffer.position(0);
 
-        return byteBuffer;
+        return buffer;
     }
 
     public static int readInt(FileChannel fileChannel, long position) throws IOException {
@@ -57,7 +50,7 @@ class FileChannelUtils {
 
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
         fileChannel.read(buffer, position);
-        buffer.flip();
+        buffer.position(0);
 
         return buffer.getInt();
     }

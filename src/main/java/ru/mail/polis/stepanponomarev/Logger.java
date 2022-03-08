@@ -5,31 +5,23 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Logger implements Closeable {
-    private static final int tombstoneTag = -1;
     private static final String fileName = "lsm.log";
 
-    private static final OpenOption[] writeOpenOptions = {
-            StandardOpenOption.APPEND,
-            StandardOpenOption.CREATE,
-    };
-
-    private final Path path;
+    private Path path;
     private FileChannel writeFileChannel;
 
-    public Logger(Path path) throws IOException {
-        this.path = new File(path.toAbsolutePath() + "/" + fileName).toPath();
-
-        if (path.toFile().exists()) {
-            this.writeFileChannel = FileChannel.open(this.path, writeOpenOptions);
+    public Logger(Path basePath) throws IOException {
+        if (!basePath.toFile().exists()) {
+            return;
         }
+        path = new File(basePath.toAbsolutePath() + "/" + fileName).toPath();
+        writeFileChannel = FileChannel.open(path, FileChannelUtils.APPEND_OPEN_OPTIONS);
     }
 
     public void append(ByteBuffer keySrc, ByteBuffer valueSrc) throws IOException {
@@ -37,15 +29,30 @@ public class Logger implements Closeable {
             throw new NullPointerException("Key can't be null.");
         }
 
-        FileChannelUtils.append(writeFileChannel, keySrc, valueSrc, tombstoneTag);
+        if (!writeFileChannel.isOpen()) {
+            throw new IllegalStateException("FileChannel should be opened.");
+        }
+
+        ByteBuffer key = keySrc.duplicate();
+        ByteBuffer value = valueSrc == null ? null : valueSrc.duplicate();
+        ByteBuffer[] byteBuffers = {
+                Utils.toByteBuffer(key.remaining()),
+                key,
+                value == null ? Utils.toByteBuffer(Utils.TOMBSTONE_TAG) : Utils.toByteBuffer(value.remaining())
+        };
+
+        writeFileChannel.write(byteBuffers);
+        if (value != null) {
+            writeFileChannel.write(value);
+        }
     }
 
     public Map<ByteBuffer, ByteBuffer> read() throws IOException {
-        if (!path.toFile().exists()) {
+        if (path == null || !path.toFile().exists()) {
             return Collections.emptyMap();
         }
 
-        try (final FileChannel readFileChannel = FileChannel.open(path, StandardOpenOption.READ)) {
+        try (final FileChannel readFileChannel = FileChannel.open(path, FileChannelUtils.READ_OPEN_OPTIONS)) {
             final Map<ByteBuffer, ByteBuffer> data = new HashMap<>();
             final long size = readFileChannel.size();
 
@@ -60,7 +67,7 @@ public class Logger implements Closeable {
                 int valueSize = FileChannelUtils.readInt(readFileChannel, currentPosition);
                 currentPosition += Integer.BYTES;
 
-                if (valueSize == tombstoneTag) {
+                if (valueSize == Utils.TOMBSTONE_TAG) {
                     data.remove(key);
                     continue;
                 }
@@ -78,11 +85,15 @@ public class Logger implements Closeable {
     public void clear() throws IOException {
         writeFileChannel.close();
         path.toFile().delete();
-        writeFileChannel = FileChannel.open(path, writeOpenOptions);
+        writeFileChannel = FileChannel.open(path, FileChannelUtils.APPEND_OPEN_OPTIONS);
     }
 
     @Override
     public void close() throws IOException {
+        if (writeFileChannel == null) {
+            return;
+        }
+
         writeFileChannel.close();
     }
 }

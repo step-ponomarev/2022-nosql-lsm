@@ -5,52 +5,59 @@ import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class SSTable implements Closeable {
-    private static final int tombstoneTag = -1;
+public class SSTable{
     private static final String fileName = "ss.table";
-
-    private static final OpenOption[] writeOpenOptions = {
-            StandardOpenOption.APPEND,
-            StandardOpenOption.CREATE,
-    };
-    private static final OpenOption[] reatOpenOptions = {
-            StandardOpenOption.READ
-    };
-
+    private static final String indexFile = "index.file";
 
     private final Path path;
-    private FileChannel fileChannel;
+    private final SortedMap<ComparableMemorySegmentWrapper, Long> memIndex;
 
-    public SSTable(Path path) throws IOException {
-        this.path = new File(path.toAbsolutePath() + "/" + fileName).toPath();
+    public SSTable(Path basePath) throws IOException {
+        path = basePath;
 
-        if (path.toFile().exists()) {
-            this.fileChannel = FileChannel.open(this.path, writeOpenOptions);
+        //TODO: Читать с диска
+        memIndex = new TreeMap<>();
+        if (!path.toFile().exists()) {
+            return;
         }
     }
 
     public void flush(Iterator<Entry<ComparableMemorySegmentWrapper>> data) throws IOException {
-        while (data.hasNext()) {
-            Entry<ComparableMemorySegmentWrapper> next = data.next();
-            FileChannelUtils.append(
-                    fileChannel,
-                    next.key().getMemorySegment().asByteBuffer(),
-                    next.value().getMemorySegment().asByteBuffer(),
-                    tombstoneTag
-            );
+        try (final FileChannel fileChannel = FileChannel.open(getFilePath(fileName), FileChannelUtils.APPEND_OPEN_OPTIONS)) {
+            while (data.hasNext()) {
+                final long keyPos = fileChannel.position();
+                final Entry<ComparableMemorySegmentWrapper> entry = data.next();
+
+                ByteBuffer key = entry.key().getMemorySegment().asByteBuffer();
+                int keySize = key.remaining();
+
+                fileChannel.write(Utils.toByteBuffer(keySize));
+                fileChannel.write(key);
+
+                ByteBuffer value = entry.value() == null ? null : entry.value().getMemorySegment().asByteBuffer();
+                int valueSize = value == null ? Utils.TOMBSTONE_TAG : value.remaining();
+
+                fileChannel.write(Utils.toByteBuffer(valueSize));
+                if (value == null) {
+                    continue;
+                }
+                fileChannel.write(value);
+
+                memIndex.put(entry.key(), keyPos);
+            }
         }
+
+        // Flush memIndex
     }
 
     public Entry<ComparableMemorySegmentWrapper> get(ComparableMemorySegmentWrapper key) throws IOException {
@@ -85,20 +92,21 @@ public class SSTable implements Closeable {
         return data.subMap(from, to).values().iterator();
     }
 
-    @Override
-    public void close() throws IOException {
-        fileChannel.close();
+    private Path getFilePath(String fileName) {
+        return new File(path.toAbsolutePath() + "/" + fileName).toPath();
     }
 
     private SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> get() throws IOException {
-        if (!path.toFile().exists()) {
+        final Path filePath = getFilePath(fileName);
+
+        if (!filePath.toFile().exists()) {
             return Collections.emptySortedMap();
         }
 
         final SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> data = new TreeMap<>();
 
-        try (final FileChannel fileChannel = FileChannel.open(path, reatOpenOptions)) {
-            final MemorySegment memorySegment = MemorySegment.mapFile(path, 0, fileChannel.size(), FileChannel.MapMode.READ_ONLY, ResourceScope.newSharedScope());
+        try (final FileChannel fileChannel = FileChannel.open(filePath, FileChannelUtils.READ_OPEN_OPTIONS)) {
+            final MemorySegment memorySegment = MemorySegment.mapFile(filePath, 0, fileChannel.size(), FileChannel.MapMode.READ_ONLY, ResourceScope.newSharedScope());
             final long size = memorySegment.byteSize();
 
             long position = 0;
@@ -112,7 +120,7 @@ public class SSTable implements Closeable {
                 int valueSize = memorySegment.asSlice(position, Integer.BYTES).asByteBuffer().getInt();
                 position += Integer.BYTES;
 
-                if (valueSize == tombstoneTag) {
+                if (valueSize == Utils.TOMBSTONE_TAG) {
                     data.remove(key);
                     continue;
                 }

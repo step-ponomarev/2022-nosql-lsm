@@ -16,20 +16,15 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
 
-public class LSMDao implements Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
-    private static final long maxSizeByte = 500_000;
-
+public class LsmDao implements Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
     private final Logger logger;
     private final SSTable ssTable;
     private final SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> memTable;
 
-    private long currentSize;
-
-    public LSMDao(Path path) throws IOException {
+    public LsmDao(Path path) throws IOException {
         logger = new Logger(path);
         ssTable = new SSTable(path);
         memTable = createMemTable();
-        currentSize = sizeOf(memTable.values());
     }
 
     @Override
@@ -67,26 +62,19 @@ public class LSMDao implements Dao<ComparableMemorySegmentWrapper, Entry<Compara
             throw new NullPointerException("Entry can't be null");
         }
 
-        memTable.put(entry.key(), entry);
         try {
+            memTable.put(entry.key(), entry);
             logger.append(entry.key().getMemorySegment().asByteBuffer(), entry.value().getMemorySegment().asByteBuffer());
-
-            currentSize += sizeOf(entry);
-            if (currentSize >= maxSizeByte) {
-                ssTable.flush(memTable.values().iterator());
-                logger.clear();
-                memTable.clear();
-                currentSize = 0;
-            }
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
         }
     }
 
     @Override
-    public void close() throws IOException {
-        logger.close();
-        ssTable.close();
+    public void flush() throws IOException {
+        ssTable.flush(memTable.values().iterator());
+        logger.clear();
+        memTable.clear();
     }
 
     private SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> createMemTable() throws IOException {
@@ -99,10 +87,6 @@ public class LSMDao implements Dao<ComparableMemorySegmentWrapper, Entry<Compara
                 .stream()
                 .map(this::convert)
                 .collect(Collectors.toMap(Entry::key, e -> e, (o1, o2) -> o1, ConcurrentSkipListMap::new));
-    }
-
-    private long sizeOf(Collection<Entry<ComparableMemorySegmentWrapper>> values) {
-        return values.stream().mapToLong(this::sizeOf).count();
     }
 
     private long sizeOf(Entry<ComparableMemorySegmentWrapper> entry) {

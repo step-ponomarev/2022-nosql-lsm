@@ -5,17 +5,17 @@ import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.ComparableMemorySegmentWrapper;
-import ru.mail.polis.stepanponomarev.LSMDao;
+import ru.mail.polis.stepanponomarev.LsmDao;
 import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
 
 @DaoFactory(stage = 2)
-public class LSMDaoFactory implements DaoFactory.Factory<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
+public class LsmDaoFactory implements DaoFactory.Factory<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
 
     @Override
     public Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> createDao(Config config) throws IOException {
-        return new LSMDao(config.basePath());
+        return new LsmDao(config.basePath());
     }
 
     @Override
