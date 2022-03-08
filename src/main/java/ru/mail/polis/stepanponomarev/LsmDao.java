@@ -14,7 +14,7 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
-    private final String SS_TABLE_DIR_NAME = "table";
+    private final String SSTABLE_DIR_NAME = "table";
 
     private final Path path;
     private final List<SSTable> ssTables;
@@ -52,7 +52,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
     public void flush() throws IOException {
-        final Path ssTableDir = path.resolve(SS_TABLE_DIR_NAME + ssTables.size());
+        final Path ssTableDir = path.resolve(SSTABLE_DIR_NAME + ssTables.size());
         Files.createDirectory(ssTableDir);
 
         final SSTable ssTable = new SSTable(ssTableDir);
@@ -71,7 +71,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
         final int ssTableAmount = dirList == null ? 0 : dirList.length;
         final List<SSTable> tables = new ArrayList<>(ssTableAmount);
         for (int i = 0; i < ssTableAmount; i++) {
-            tables.add(new SSTable(path.resolve(SS_TABLE_DIR_NAME + i)));
+            tables.add(new SSTable(path.resolve(SSTABLE_DIR_NAME + i)));
         }
 
         return tables;
