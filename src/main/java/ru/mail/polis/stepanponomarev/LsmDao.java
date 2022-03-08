@@ -15,7 +15,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     private final SSTable ssTable;
     private final SortedMap<ByteBuffer, Entry<ByteBuffer>> memTable = new ConcurrentSkipListMap<>();
 
-    public LsmDao(Path path) throws IOException {
+    public LsmDao(Path path) {
         ssTable = new SSTable(path);
     }
 
@@ -40,10 +40,6 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
     public void upsert(Entry<ByteBuffer> entry) {
-        if (entry == null) {
-            throw new NullPointerException("Entry can't be null");
-        }
-
         memTable.put(entry.key(), entry);
     }
 

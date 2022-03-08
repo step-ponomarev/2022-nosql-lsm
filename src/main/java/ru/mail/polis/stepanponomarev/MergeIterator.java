@@ -7,7 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>> {
+final class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>> {
     private final Iterator<Entry<T>> firstIter;
     private final Iterator<Entry<T>> secondIter;
 
@@ -38,8 +38,8 @@ class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>> {
         );
     }
 
-    private static <T extends Comparable<T>> Iterator<Entry<T>> merge(Iterator<Entry<T>> left, Iterator<Entry<T>> right) {
-        return new MergeIterator<>(left, right);
+    private static <T extends Comparable<T>> Iterator<Entry<T>> merge(Iterator<Entry<T>> l, Iterator<Entry<T>> r) {
+        return new MergeIterator<>(l, r);
     }
 
     @Override
