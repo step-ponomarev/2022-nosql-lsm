@@ -29,7 +29,7 @@ public class UtilsTest {
 
     @Test
     public void readIntTest() throws URISyntaxException, IOException {
-        final File file = new File(Path.of(LogTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath() + "/testFiles");
+        final File file = new File(Path.of(LoggerTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath() + "/testFiles");
         file.mkdir();
 
         final Path path = new File(file.getAbsolutePath() + "/file.txt").toPath();

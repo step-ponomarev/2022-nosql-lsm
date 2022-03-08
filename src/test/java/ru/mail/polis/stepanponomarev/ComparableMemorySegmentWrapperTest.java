@@ -46,7 +46,7 @@ public class ComparableMemorySegmentWrapperTest {
 
     @Test
     public void testCompareAfterReading() throws URISyntaxException, IOException {
-        final File dir = new File(Path.of(LogTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath() + "/testFiles");
+        final File dir = new File(Path.of(LoggerTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath() + "/testFiles");
         dir.mkdir();
         final Path path = new File(dir.getAbsolutePath() + "/test.file").toPath();
 
