@@ -8,12 +8,16 @@ import ru.mail.polis.Entry;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
 
 public class LSMDao implements Dao<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> {
-    private static final long maxSizeByte = 500_000_000;
+    private static final long maxSizeByte = 500_000;
 
     private final Logger logger;
     private final SSTable ssTable;
@@ -82,6 +86,7 @@ public class LSMDao implements Dao<ComparableMemorySegmentWrapper, Entry<Compara
     @Override
     public void close() throws IOException {
         logger.close();
+        ssTable.close();
     }
 
     private SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> createMemTable() throws IOException {

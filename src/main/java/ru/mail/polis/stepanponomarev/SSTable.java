@@ -18,23 +18,27 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class SSTable implements Closeable {
-    private static final int TOMBSTONE_TAG = -1;
+    private static final int tombstoneTag = -1;
+    private static final String fileName = "ss.table";
 
-    private static final OpenOption[] WRITE_OPEN_OPTIONS = {
+    private static final OpenOption[] writeOpenOptions = {
             StandardOpenOption.APPEND,
             StandardOpenOption.CREATE,
     };
-    private static final OpenOption[] READ_OPEN_OPTIONS = {
+    private static final OpenOption[] reatOpenOptions = {
             StandardOpenOption.READ
     };
 
-    private static final String FILE_NAME = "ss.table";
+
     private final Path path;
     private FileChannel fileChannel;
 
     public SSTable(Path path) throws IOException {
-        this.path = new File(path.toAbsolutePath() + "/" + FILE_NAME).toPath();
-        fileChannel = FileChannel.open(this.path, WRITE_OPEN_OPTIONS);
+        this.path = new File(path.toAbsolutePath() + "/" + fileName).toPath();
+
+        if (path.toFile().exists()) {
+            this.fileChannel = FileChannel.open(this.path, writeOpenOptions);
+        }
     }
 
     public void flush(Iterator<Entry<ComparableMemorySegmentWrapper>> data) throws IOException {
@@ -44,7 +48,7 @@ public class SSTable implements Closeable {
                     fileChannel,
                     next.key().getMemorySegment().asByteBuffer(),
                     next.value().getMemorySegment().asByteBuffer(),
-                    TOMBSTONE_TAG
+                    tombstoneTag
             );
         }
     }
@@ -93,7 +97,7 @@ public class SSTable implements Closeable {
 
         final SortedMap<ComparableMemorySegmentWrapper, Entry<ComparableMemorySegmentWrapper>> data = new TreeMap<>();
 
-        try (final FileChannel fileChannel = FileChannel.open(path, READ_OPEN_OPTIONS)) {
+        try (final FileChannel fileChannel = FileChannel.open(path, reatOpenOptions)) {
             final MemorySegment memorySegment = MemorySegment.mapFile(path, 0, fileChannel.size(), FileChannel.MapMode.READ_ONLY, ResourceScope.newSharedScope());
             final long size = memorySegment.byteSize();
 
@@ -108,7 +112,7 @@ public class SSTable implements Closeable {
                 int valueSize = memorySegment.asSlice(position, Integer.BYTES).asByteBuffer().getInt();
                 position += Integer.BYTES;
 
-                if (valueSize == TOMBSTONE_TAG) {
+                if (valueSize == tombstoneTag) {
                     data.remove(key);
                     continue;
                 }

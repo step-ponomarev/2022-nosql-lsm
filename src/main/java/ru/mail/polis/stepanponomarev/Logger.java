@@ -13,10 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Logger implements Closeable {
-    private static final int TOMBSTONE_TAG = -1;
+    private static final int tombstoneTag = -1;
+    private static final String fileName = "lsm.log";
 
-    private static final String FILE_NAME = "lsm.txt";
-    private static final OpenOption[] WRITE_OPEN_OPTIONS = {
+    private static final OpenOption[] writeOpenOptions = {
             StandardOpenOption.APPEND,
             StandardOpenOption.CREATE,
     };
@@ -25,8 +25,11 @@ public class Logger implements Closeable {
     private FileChannel writeFileChannel;
 
     public Logger(Path path) throws IOException {
-        this.path = new File(path.toAbsolutePath() + "/" + FILE_NAME).toPath();
-        writeFileChannel = FileChannel.open(this.path, WRITE_OPEN_OPTIONS);
+        this.path = new File(path.toAbsolutePath() + "/" + fileName).toPath();
+
+        if (path.toFile().exists()) {
+            this.writeFileChannel = FileChannel.open(this.path, writeOpenOptions);
+        }
     }
 
     public void append(ByteBuffer keySrc, ByteBuffer valueSrc) throws IOException {
@@ -34,11 +37,7 @@ public class Logger implements Closeable {
             throw new NullPointerException("Key can't be null.");
         }
 
-        if (!writeFileChannel.isOpen()) {
-            writeFileChannel = FileChannel.open(path, WRITE_OPEN_OPTIONS);
-        }
-
-        FileChannelUtils.append(writeFileChannel, keySrc, valueSrc, TOMBSTONE_TAG);
+        FileChannelUtils.append(writeFileChannel, keySrc, valueSrc, tombstoneTag);
     }
 
     public Map<ByteBuffer, ByteBuffer> read() throws IOException {
@@ -61,7 +60,7 @@ public class Logger implements Closeable {
                 int valueSize = FileChannelUtils.readInt(readFileChannel, currentPosition);
                 currentPosition += Integer.BYTES;
 
-                if (valueSize == TOMBSTONE_TAG) {
+                if (valueSize == tombstoneTag) {
                     data.remove(key);
                     continue;
                 }
@@ -79,6 +78,7 @@ public class Logger implements Closeable {
     public void clear() throws IOException {
         writeFileChannel.close();
         path.toFile().delete();
+        writeFileChannel = FileChannel.open(path, writeOpenOptions);
     }
 
     @Override
