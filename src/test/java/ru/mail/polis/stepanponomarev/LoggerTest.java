@@ -2,6 +2,7 @@ package ru.mail.polis.stepanponomarev;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import ru.mail.polis.Entry;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 public class LoggerTest {
@@ -34,11 +36,13 @@ public class LoggerTest {
         }
 
         try {
-            Map<ByteBuffer, ByteBuffer> loadedData = log.read();
-            loadedData.forEach((key, value) -> {
-                Assertions.assertTrue(sourceData.containsKey(key));
-                Assertions.assertEquals(sourceData.get(key), value);
-            });
+            Iterator<Entry<ByteBuffer>> read = log.get();
+            while (read.hasNext()) {
+                Entry<ByteBuffer> next = read.next();
+
+                Assertions.assertTrue(sourceData.containsKey(next.key()));
+                Assertions.assertEquals(sourceData.get(next.key()), next.value());
+            }
         } finally {
             Files.walk(path)
                     .map(Path::toFile)
@@ -66,12 +70,17 @@ public class LoggerTest {
             log.append(key, value);
         }
 
-        Map<ByteBuffer, ByteBuffer> loadedData = log.read();
-        Assertions.assertEquals(sourceData.size() / 2, loadedData.size());
-        loadedData.forEach((key, value) -> {
-            Assertions.assertTrue(sourceData.containsKey(key));
-            Assertions.assertEquals(sourceData.get(key), value);
-        });
+        Iterator<Entry<ByteBuffer>> read = log.get();
+        int size = 0;
+        while (read.hasNext()) {
+            Entry<ByteBuffer> next = read.next();
+
+            size++;
+            Assertions.assertTrue(sourceData.containsKey(next.key()));
+            Assertions.assertEquals(sourceData.get(next.key()), next.value());
+        }
+
+        Assertions.assertEquals(sourceData.size() / 2, size);
 
         Files.walk(path)
                 .map(Path::toFile)

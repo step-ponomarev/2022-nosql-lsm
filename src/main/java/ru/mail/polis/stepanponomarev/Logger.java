@@ -1,5 +1,8 @@
 package ru.mail.polis.stepanponomarev;
 
+import ru.mail.polis.BaseEntry;
+import ru.mail.polis.Entry;
+
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -8,20 +11,21 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 public class Logger implements Closeable {
     private static final String fileName = "lsm.log";
 
-    private Path path;
+    private final Path path;
     private FileChannel writeFileChannel;
 
     public Logger(Path basePath) throws IOException {
+        path = basePath;
         if (!basePath.toFile().exists()) {
             return;
         }
-        path = new File(basePath.toAbsolutePath() + "/" + fileName).toPath();
-        writeFileChannel = FileChannel.open(path, FileChannelUtils.APPEND_OPEN_OPTIONS);
+        writeFileChannel = FileChannel.open(getFilePath(), FileChannelUtils.APPEND_OPEN_OPTIONS);
     }
 
     public void append(ByteBuffer keySrc, ByteBuffer valueSrc) throws IOException {
@@ -47,13 +51,13 @@ public class Logger implements Closeable {
         }
     }
 
-    public Map<ByteBuffer, ByteBuffer> read() throws IOException {
-        if (path == null || !path.toFile().exists()) {
-            return Collections.emptyMap();
+    public Iterator<Entry<ByteBuffer>> get() throws IOException {
+        if (!path.toFile().exists()) {
+            return Collections.emptyIterator();
         }
 
-        try (final FileChannel readFileChannel = FileChannel.open(path, FileChannelUtils.READ_OPEN_OPTIONS)) {
-            final Map<ByteBuffer, ByteBuffer> data = new HashMap<>();
+        try (final FileChannel readFileChannel = FileChannel.open(getFilePath(), FileChannelUtils.READ_OPEN_OPTIONS)) {
+            final Map<ByteBuffer, Entry<ByteBuffer>> data = new HashMap<>();
             final long size = readFileChannel.size();
 
             long currentPosition = readFileChannel.position();
@@ -75,17 +79,21 @@ public class Logger implements Closeable {
                 ByteBuffer value = FileChannelUtils.readByteBuffer(readFileChannel, currentPosition, valueSize);
                 currentPosition += valueSize;
 
-                data.put(key, value);
+                data.put(key, new BaseEntry<>(key, value));
             }
 
-            return data;
+            return data.values().iterator();
         }
     }
 
     public void clear() throws IOException {
         writeFileChannel.close();
         path.toFile().delete();
-        writeFileChannel = FileChannel.open(path, FileChannelUtils.APPEND_OPEN_OPTIONS);
+        writeFileChannel = FileChannel.open(getFilePath(), FileChannelUtils.APPEND_OPEN_OPTIONS);
+    }
+
+    private Path getFilePath() {
+        return new File(path.toAbsolutePath() + "/" + fileName).toPath();
     }
 
     @Override

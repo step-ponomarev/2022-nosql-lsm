@@ -7,22 +7,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-class MergeIterator implements Iterator<Entry<ComparableMemorySegmentWrapper>> {
-    private final Iterator<Entry<ComparableMemorySegmentWrapper>> firstIter;
-    private final Iterator<Entry<ComparableMemorySegmentWrapper>> secondIter;
+class MergeIterator<T extends Comparable<T>> implements Iterator<Entry<T>> {
+    private final Iterator<Entry<T>> firstIter;
+    private final Iterator<Entry<T>> secondIter;
 
-    private Entry<ComparableMemorySegmentWrapper> firstRecord;
-    private Entry<ComparableMemorySegmentWrapper> secondRecord;
+    private Entry<T> firstRecord;
+    private Entry<T> secondRecord;
 
-    private MergeIterator(final Iterator<Entry<ComparableMemorySegmentWrapper>> left, final Iterator<Entry<ComparableMemorySegmentWrapper>> right) {
+    private MergeIterator(final Iterator<Entry<T>> left, final Iterator<Entry<T>> right) {
         firstIter = right;
         secondIter = left;
 
-        this.firstRecord = getElement(firstIter);
-        this.secondRecord = getElement(secondIter);
+        firstRecord = getElement(firstIter);
+        secondRecord = getElement(secondIter);
     }
 
-    public static Iterator<Entry<ComparableMemorySegmentWrapper>> instanceOf(List<Iterator<Entry<ComparableMemorySegmentWrapper>>> iterators) {
+    public static <T extends Comparable<T>> Iterator<Entry<T>> instanceOf(List<Iterator<Entry<T>>> iterators) {
         if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
@@ -38,8 +38,8 @@ class MergeIterator implements Iterator<Entry<ComparableMemorySegmentWrapper>> {
         );
     }
 
-    private static Iterator<Entry<ComparableMemorySegmentWrapper>> merge(Iterator<Entry<ComparableMemorySegmentWrapper>> left, Iterator<Entry<ComparableMemorySegmentWrapper>> right) {
-        return new MergeIterator(left, right);
+    private static <T extends Comparable<T>> Iterator<Entry<T>> merge(Iterator<Entry<T>> left, Iterator<Entry<T>> right) {
+        return new MergeIterator<>(left, right);
     }
 
     @Override
@@ -48,13 +48,13 @@ class MergeIterator implements Iterator<Entry<ComparableMemorySegmentWrapper>> {
     }
 
     @Override
-    public Entry<ComparableMemorySegmentWrapper> next() {
+    public Entry<T> next() {
         if (!hasNext()) {
             throw new NoSuchElementException("No Such Element");
         }
 
         final int compareResult = compare(firstRecord, secondRecord);
-        final Entry<ComparableMemorySegmentWrapper> next = compareResult > 0
+        final Entry<T> next = compareResult > 0
                 ? secondRecord
                 : firstRecord;
 
@@ -74,7 +74,7 @@ class MergeIterator implements Iterator<Entry<ComparableMemorySegmentWrapper>> {
         return next;
     }
 
-    private int compare(Entry<ComparableMemorySegmentWrapper> r1, Entry<ComparableMemorySegmentWrapper> r2) {
+    private int compare(Entry<T> r1, Entry<T> r2) {
         if (r1 == null) {
             return 1;
         }
@@ -86,7 +86,7 @@ class MergeIterator implements Iterator<Entry<ComparableMemorySegmentWrapper>> {
         return r1.key().compareTo(r2.key());
     }
 
-    private Entry<ComparableMemorySegmentWrapper> getElement(final Iterator<Entry<ComparableMemorySegmentWrapper>> iter) {
+    private Entry<T> getElement(final Iterator<Entry<T>> iter) {
         return iter.hasNext() ? iter.next() : null;
     }
 }
