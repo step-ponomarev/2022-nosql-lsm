@@ -8,30 +8,30 @@ import java.nio.MappedByteBuffer;
 import java.util.Iterator;
 
 class MappedIterator implements Iterator<Entry<ByteBuffer>> {
-    final MappedByteBuffer mappedByteBuffer;
+    final MappedByteBuffer mappedTable;
 
     public MappedIterator(MappedByteBuffer mappedByteBuffer) {
-        this.mappedByteBuffer = mappedByteBuffer;
+        this.mappedTable = mappedByteBuffer;
     }
 
     @Override
     public boolean hasNext() {
-        return this.mappedByteBuffer.position() != this.mappedByteBuffer.limit();
+        return this.mappedTable.position() != this.mappedTable.limit();
     }
 
     @Override
     public Entry<ByteBuffer> next() {
-        final int keySize = mappedByteBuffer.getInt();
-        final ByteBuffer key = mappedByteBuffer.slice(mappedByteBuffer.position(), keySize);
-        mappedByteBuffer.position(mappedByteBuffer.position() + keySize);
+        final int keySize = mappedTable.getInt();
+        final ByteBuffer key = mappedTable.slice(mappedTable.position(), keySize);
+        mappedTable.position(mappedTable.position() + keySize);
 
-        final int valueSize = mappedByteBuffer.getInt();
+        final int valueSize = mappedTable.getInt();
         if (valueSize == Utils.TOMBSTONE_TAG) {
             return new BaseEntry<>(key, null);
         }
 
-        final ByteBuffer value = mappedByteBuffer.slice(mappedByteBuffer.position(), valueSize);
-        mappedByteBuffer.position(mappedByteBuffer.position() + valueSize);
+        final ByteBuffer value = mappedTable.slice(mappedTable.position(), valueSize);
+        mappedTable.position(mappedTable.position() + valueSize);
 
         return new BaseEntry<>(key, value);
     }
