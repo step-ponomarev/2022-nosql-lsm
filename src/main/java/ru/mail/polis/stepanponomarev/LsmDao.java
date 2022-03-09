@@ -14,22 +14,23 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+//TODO: Добавить лог, дублирующий memTable
 public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
-    private final List<SSTable> ssTalbes;
+    private final List<SSTable> store;
     private final SortedMap<ByteBuffer, Entry<ByteBuffer>> memTable = new ConcurrentSkipListMap<>();
 
     public LsmDao(Path bathPath) throws IOException {
         path = bathPath;
-        ssTalbes = createSSTables(path);
+        store = createStore(path);
     }
 
     @Override
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
         List<Iterator<Entry<ByteBuffer>>> iterators = new ArrayList<>();
-        for (SSTable table : ssTalbes) {
+        for (SSTable table : store) {
             iterators.add(table.get(from, to));
         }
 
@@ -53,16 +54,16 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
 
     @Override
     public void flush() throws IOException {
-        final Path ssTableDir = path.resolve(SSTABLE_DIR_NAME + ssTalbes.size());
-        if (Files.notExists(ssTableDir)) {
-            Files.createDirectory(ssTableDir);
+        final Path dir = path.resolve(SSTABLE_DIR_NAME + store.size());
+        if (Files.notExists(dir)) {
+            Files.createDirectory(dir);
         }
 
-        ssTalbes.add(SSTable.createInstance(ssTableDir, memTable.values().iterator()));
+        store.add(SSTable.createInstance(dir, memTable.values().iterator()));
         memTable.clear();
     }
 
-    private List<SSTable> createSSTables(Path path) throws IOException {
+    private List<SSTable> createStore(Path path) throws IOException {
         if (Files.notExists(path)) {
             return new ArrayList<>();
         }
