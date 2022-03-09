@@ -2,6 +2,7 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.SSTable.SSTable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -14,7 +15,7 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
-    private static final String SSTABLE_DIR_NAME = "table";
+    private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
     private final List<SSTable> ssTalbes;
@@ -53,7 +54,9 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
     @Override
     public void flush() throws IOException {
         final Path ssTableDir = path.resolve(SSTABLE_DIR_NAME + ssTalbes.size());
-        Files.createDirectory(ssTableDir);
+        if (Files.notExists(ssTableDir)) {
+            Files.createDirectory(ssTableDir);
+        }
 
         final SSTable ssTable = new SSTable(ssTableDir);
         ssTable.flush(memTable.values().iterator());
