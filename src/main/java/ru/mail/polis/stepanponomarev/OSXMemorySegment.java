@@ -7,15 +7,15 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 public class OSXMemorySegment implements Comparable<OSXMemorySegment> {
-    private static final Comparator<MemorySegment> comparator = (MemorySegment o1, MemorySegment o2) -> {
-        final long mismatch = o1.mismatch(o2);
+    private static final Comparator<MemorySegment> comparator = (MemorySegment m1, MemorySegment m2) -> {
+        final long mismatch = m1.mismatch(m2);
         if (mismatch == -1) {
             return 0;
         }
 
         return Byte.compare(
-                MemoryAccess.getByteAtOffset(o1, mismatch),
-                MemoryAccess.getByteAtOffset(o2, mismatch)
+                MemoryAccess.getByteAtOffset(m1, mismatch),
+                MemoryAccess.getByteAtOffset(m2, mismatch)
         );
     };
 
