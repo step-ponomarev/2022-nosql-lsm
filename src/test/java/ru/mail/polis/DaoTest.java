@@ -48,9 +48,6 @@ public @interface DaoTest {
         private static final ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace.create("dao");
 
         private List<Class<?>> getFactories(ExtensionContext context) throws Exception {
-            int length = MemorySegment.class.getPermittedSubclasses().length;
-            MemorySegment.class.getPermittedSubclasses()[length - 1] = OSXMemorySegment.class;
-
             if (context.getStore(NAMESPACE).get("factories") == null) {
                 CodeSource codeSource = DaoFactory.class.getProtectionDomain().getCodeSource();
                 Path path = Path.of(codeSource.getLocation().toURI());
