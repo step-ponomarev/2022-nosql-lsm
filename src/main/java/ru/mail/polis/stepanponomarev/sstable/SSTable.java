@@ -17,6 +17,8 @@ import java.util.Iterator;
 import java.util.List;
 
 public final class SSTable {
+    public static final int TOMBSTONE_TAG = -1;
+
     private static final String FILE_NAME = "ss.data";
 
     private final MemorySegment memorySegment;
@@ -105,7 +107,7 @@ public final class SSTable {
 
             final OSXMemorySegment value = entry.value();
             if (value == null) {
-                MemoryAccess.setLongAtOffset(memorySegment, currentOffset, Utils.TOMBSTONE_TAG);
+                MemoryAccess.setLongAtOffset(memorySegment, currentOffset, TOMBSTONE_TAG);
                 currentOffset += Long.BYTES;
                 continue;
             }

@@ -39,7 +39,7 @@ final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
         final long valueSize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
-        if (valueSize == Utils.TOMBSTONE_TAG) {
+        if (valueSize == SSTable.TOMBSTONE_TAG) {
             return new BaseEntry<>(new OSXMemorySegment(key), null);
         }
 
