@@ -14,7 +14,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-final public class SSTable {
+public final class SSTable {
     private static final String FILE_NAME = "ss.data";
 
     private final MappedByteBuffer mappedTable;
