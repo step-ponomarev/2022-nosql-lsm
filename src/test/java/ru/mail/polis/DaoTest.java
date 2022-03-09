@@ -1,5 +1,6 @@
 package ru.mail.polis;
 
+import jdk.incubator.foreign.MemorySegment;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ConditionEvaluationResult;
 import org.junit.jupiter.api.extension.ExecutionCondition;
@@ -9,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
@@ -46,6 +48,9 @@ public @interface DaoTest {
         private static final ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace.create("dao");
 
         private List<Class<?>> getFactories(ExtensionContext context) throws Exception {
+            int length = MemorySegment.class.getPermittedSubclasses().length;
+            MemorySegment.class.getPermittedSubclasses()[length - 1] = OSXMemorySegment.class;
+
             if (context.getStore(NAMESPACE).get("factories") == null) {
                 CodeSource codeSource = DaoFactory.class.getProtectionDomain().getCodeSource();
                 Path path = Path.of(codeSource.getLocation().toURI());

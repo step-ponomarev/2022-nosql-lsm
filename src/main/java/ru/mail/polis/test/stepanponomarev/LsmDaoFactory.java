@@ -1,48 +1,45 @@
 package ru.mail.polis.test.stepanponomarev;
 
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.LsmDao;
+import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 @DaoFactory(stage = 2)
-public class LsmDaoFactory implements DaoFactory.Factory<ByteBuffer, Entry<ByteBuffer>> {
+public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Entry<OSXMemorySegment>> {
 
     @Override
-    public Dao<ByteBuffer, Entry<ByteBuffer>> createDao(Config config) throws IOException {
+    public Dao<OSXMemorySegment, Entry<OSXMemorySegment>> createDao(Config config) throws IOException {
         return new LsmDao(config.basePath());
     }
 
     @Override
-    public String toString(ByteBuffer data) {
+    public String toString(OSXMemorySegment data) {
         if (data == null) {
             return null;
         }
 
-        ByteBuffer duplicate = data.duplicate();
-        byte[] bytes = new byte[duplicate.remaining()];
-        duplicate.get(bytes);
-
-        return new String(bytes, StandardCharsets.UTF_8);
+        return StandardCharsets.UTF_8.decode(data.getMemorySegment().asByteBuffer()).toString();
     }
 
     @Override
-    public ByteBuffer fromString(String data) {
+    public OSXMemorySegment fromString(String data) {
         if (data == null) {
             return null;
         }
 
-        return ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
+        return new OSXMemorySegment(MemorySegment.ofArray(data.getBytes(StandardCharsets.UTF_8)));
     }
 
     @Override
-    public Entry<ByteBuffer> fromBaseEntry(Entry<ByteBuffer> entry) {
+    public Entry<OSXMemorySegment> fromBaseEntry(Entry<OSXMemorySegment> entry) {
         return new BaseEntry<>(entry.key(), entry.value());
     }
 }
