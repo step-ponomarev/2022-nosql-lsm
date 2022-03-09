@@ -20,11 +20,12 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     private final List<SSTable> store;
     private final SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> memTable = new ConcurrentSkipListMap<>();
 
-    private volatile long memTableSize = 0;
+    private volatile long memTableSize;
 
     public LsmDao(Path bathPath) throws IOException {
         path = bathPath;
         store = createStore(path);
+        memTableSize = 0;
     }
 
     @Override
