@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.util.Iterator;
 
-class MappedIterator implements Iterator<Entry<ByteBuffer>> {
+final class MappedIterator implements Iterator<Entry<ByteBuffer>> {
     final MappedByteBuffer mappedTable;
 
     public MappedIterator(MappedByteBuffer mappedByteBuffer) {

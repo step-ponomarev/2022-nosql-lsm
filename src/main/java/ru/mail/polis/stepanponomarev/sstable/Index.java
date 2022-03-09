@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 
-class Index {
+final class Index {
     private static final String INDEX_FILE_NAME = "ss.index";
 
     private final MappedByteBuffer mappedTable;

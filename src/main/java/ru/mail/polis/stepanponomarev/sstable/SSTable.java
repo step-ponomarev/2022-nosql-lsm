@@ -14,7 +14,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class SSTable {
+final public class SSTable {
     private static final String FILE_NAME = "ss.data";
 
     private final MappedByteBuffer mappedTable;
@@ -35,7 +35,7 @@ public class SSTable {
         final Path file = path.resolve(FILE_NAME);
         Files.createFile(file);
 
-        final Collection<Integer> positions = flushAndGetPositions(file, data);
+        final Collection<Integer> positions = flushAndAndGetPositions(file, data);
         final FileChannel open = FileChannel.open(file, Utils.READ_OPEN_OPTIONS);
 
         mappedTable = open.map(FileChannel.MapMode.READ_ONLY, 0, open.size());
@@ -54,7 +54,10 @@ public class SSTable {
         return new SSTable(path, data);
     }
 
-    private static Collection<Integer> flushAndGetPositions(Path file, Iterator<Entry<ByteBuffer>> data) throws IOException {
+    private static Collection<Integer> flushAndAndGetPositions(
+            Path file,
+            Iterator<Entry<ByteBuffer>> data
+    ) throws IOException {
         final List<Integer> positionList = new ArrayList<>();
         try (FileChannel writeChannel = FileChannel.open(file, Utils.APPEND_OPEN_OPTIONS)) {
             while (data.hasNext()) {
