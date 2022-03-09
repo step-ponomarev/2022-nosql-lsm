@@ -60,14 +60,6 @@ final class Index {
             return -1;
         }
 
-        return findKeyPosition(key);
-    }
-
-    private int findKeyPosition(ByteBuffer key) {
-        if (key == null) {
-            return -1;
-        }
-
         int left = 0;
         int right = mappedIndex.position(0).limit();
         while (right >= left) {
