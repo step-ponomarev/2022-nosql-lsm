@@ -1,38 +1,54 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.util.Iterator;
 
-final class MappedIterator implements Iterator<Entry<ByteBuffer>> {
-    private final MappedByteBuffer mappedTable;
+final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
+    private final MemorySegment memorySegment;
+    private long position;
 
-    public MappedIterator(MappedByteBuffer mappedByteBuffer) {
-        mappedTable = mappedByteBuffer;
+    public MappedIterator(MemorySegment segment) {
+        memorySegment = segment;
+        position = 0;
+        memorySegment.load();
     }
 
     @Override
     public boolean hasNext() {
-        return mappedTable.position() != mappedTable.limit();
+        boolean hasNext = memorySegment.byteSize() != position;
+        if (!hasNext) {
+            memorySegment.unload();
+        }
+
+        return hasNext;
     }
 
     @Override
-    public Entry<ByteBuffer> next() {
-        final int keySize = mappedTable.getInt();
-        final ByteBuffer key = mappedTable.slice(mappedTable.position(), keySize);
-        mappedTable.position(mappedTable.position() + keySize);
+    public Entry<OSXMemorySegment> next() {
+        final long keySize = MemoryAccess.getLongAtOffset(memorySegment, position);
+        position += Long.BYTES;
 
-        final int valueSize = mappedTable.getInt();
+        final MemorySegment key = memorySegment.asSlice(position, keySize);
+        position += keySize;
+
+        final long valueSize = MemoryAccess.getLongAtOffset(memorySegment, position);
+        position += Long.BYTES;
+
         if (valueSize == Utils.TOMBSTONE_TAG) {
-            return new BaseEntry<>(key, null);
+            return new BaseEntry<>(new OSXMemorySegment(key), null);
         }
 
-        final ByteBuffer value = mappedTable.slice(mappedTable.position(), valueSize);
-        mappedTable.position(mappedTable.position() + valueSize);
+        MemorySegment value = memorySegment.asSlice(position, valueSize);
+        position += valueSize;
 
-        return new BaseEntry<>(key, value);
+        return new BaseEntry<>(
+                new OSXMemorySegment(key),
+                new OSXMemorySegment(value)
+        );
     }
 }

@@ -1,10 +1,12 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,8 +19,9 @@ import java.util.List;
 public final class SSTable {
     private static final String FILE_NAME = "ss.data";
 
-    private final MappedByteBuffer mappedTable;
+    private final MemorySegment memorySegment;
     private final Index index;
+    private final long sizeBytes;
 
     private SSTable(Path path) throws IOException {
         final Path file = path.resolve(FILE_NAME);
@@ -26,20 +29,35 @@ public final class SSTable {
             throw new IllegalStateException("File should exists " + file);
         }
 
-        final FileChannel open = FileChannel.open(file, Utils.READ_OPEN_OPTIONS);
-        mappedTable = open.map(FileChannel.MapMode.READ_ONLY, 0, open.size());
-        index = new Index(path, mappedTable);
+        sizeBytes = Files.size(file);
+        memorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                sizeBytes,
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.globalScope()
+        );
+        index = new Index(path, memorySegment);
     }
 
-    private SSTable(Path path, Iterator<Entry<ByteBuffer>> data) throws IOException {
+    private SSTable(Path path, Iterator<Entry<OSXMemorySegment>> data, long size) throws IOException {
         final Path file = path.resolve(FILE_NAME);
-        Files.createFile(file);
+        if (Files.notExists(file)) {
+            Files.createFile(file);
+        }
 
-        final Collection<Integer> positions = flushAndAndGetPositions(file, data);
-        final FileChannel open = FileChannel.open(file, Utils.READ_OPEN_OPTIONS);
+        final Collection<Long> positions = flushAndAndGetPositions(file, data, size);
 
-        mappedTable = open.map(FileChannel.MapMode.READ_ONLY, 0, open.size());
-        index = new Index(path, positions, mappedTable);
+        sizeBytes = size;
+        memorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                sizeBytes,
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.globalScope()
+        );
+
+        index = new Index(path, positions, memorySegment);
     }
 
     public static SSTable upInstance(Path path) throws IOException {
@@ -50,70 +68,78 @@ public final class SSTable {
         return new SSTable(path);
     }
 
-    public static SSTable createInstance(Path path, Iterator<Entry<ByteBuffer>> data) throws IOException {
-        return new SSTable(path, data);
+    public static SSTable createInstance(
+            Path path,
+            Iterator<Entry<OSXMemorySegment>> data,
+            long size
+    ) throws IOException {
+        return new SSTable(path, data, size);
     }
 
-    private static Collection<Integer> flushAndAndGetPositions(
+    private static Collection<Long> flushAndAndGetPositions(
             Path file,
-            Iterator<Entry<ByteBuffer>> data
+            Iterator<Entry<OSXMemorySegment>> data,
+            long sizeBytes
     ) throws IOException {
-        final List<Integer> positionList = new ArrayList<>();
-        try (FileChannel writeChannel = FileChannel.open(file, Utils.APPEND_OPEN_OPTIONS)) {
-            while (data.hasNext()) {
-                final Entry<ByteBuffer> entry = data.next();
-                positionList.add((int) writeChannel.position());
-                writeChannel.write(toByteBuffer(entry));
+        final List<Long> positionList = new ArrayList<>();
+        MemorySegment memorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                sizeBytes,
+                FileChannel.MapMode.READ_WRITE,
+                ResourceScope.globalScope()
+        );
+
+        long currentOffset = 0;
+        while (data.hasNext()) {
+            positionList.add(currentOffset);
+
+            final Entry<OSXMemorySegment> entry = data.next();
+            final MemorySegment key = entry.key().getMemorySegment();
+            final long keySize = key.byteSize();
+            MemoryAccess.setLongAtOffset(memorySegment, currentOffset, keySize);
+            currentOffset += Long.BYTES;
+
+            memorySegment.asSlice(currentOffset, keySize).copyFrom(key);
+            currentOffset += keySize;
+
+            final OSXMemorySegment value = entry.value();
+            if (value == null) {
+                MemoryAccess.setLongAtOffset(memorySegment, currentOffset, Utils.TOMBSTONE_TAG);
+                currentOffset += Long.BYTES;
+                continue;
             }
+
+            final long valueSize = value.getMemorySegment().byteSize();
+            MemoryAccess.setLongAtOffset(memorySegment, currentOffset, valueSize);
+            currentOffset += Long.BYTES;
+
+            memorySegment.asSlice(currentOffset, valueSize).copyFrom(value.getMemorySegment());
+            currentOffset += valueSize;
         }
+
+        memorySegment.force();
 
         return positionList;
     }
 
-    public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
-        final int size = mappedTable.limit();
-        if (size == 0) {
+    public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
+        if (sizeBytes == 0) {
             return Collections.emptyIterator();
         }
 
-        final int fromPosition = getKeyPositionOrDefault(from, 0);
-        final int toPosition = getKeyPositionOrDefault(to, size);
+        final long fromPosition = getKeyPositionOrDefault(from, 0);
+        final long toPosition = getKeyPositionOrDefault(to, sizeBytes);
 
-        return new MappedIterator(
-                mappedTable.slice(fromPosition, toPosition - fromPosition)
-        );
+        return new MappedIterator(memorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
 
-    private int getKeyPositionOrDefault(ByteBuffer key, int defaultPosition) {
-        final int keyPosition = index.getKeyPosition(key);
+    private long getKeyPositionOrDefault(OSXMemorySegment key, long defaultPosition) {
+        final long keyPosition = index.getKeyPosition(key);
         if (keyPosition == -1) {
             return defaultPosition;
         }
 
         return keyPosition;
-    }
-
-    private static ByteBuffer toByteBuffer(Entry<ByteBuffer> entry) {
-        final ByteBuffer key = entry.key();
-        final ByteBuffer value = entry.value() == null ? null : entry.value();
-        final int valueSize = value == null ? Utils.TOMBSTONE_TAG : value.remaining();
-
-        final ByteBuffer buffer = ByteBuffer.allocate(
-                key.remaining() + Integer.BYTES * 2 + (value == null ? 0 : value.remaining())
-        );
-
-        buffer.put(toByteBuffer(key.remaining()));
-        buffer.put(key);
-        buffer.put(toByteBuffer(valueSize));
-        if (value != null) {
-            buffer.put(value);
-        }
-        buffer.flip();
-
-        return buffer;
-    }
-
-    private static ByteBuffer toByteBuffer(int num) {
-        return ByteBuffer.wrap(ByteBuffer.allocate(Integer.BYTES).putInt(num).array());
     }
 }

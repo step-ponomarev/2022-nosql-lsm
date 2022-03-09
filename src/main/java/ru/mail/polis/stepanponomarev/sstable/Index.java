@@ -1,8 +1,11 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,84 +14,99 @@ import java.util.Collection;
 final class Index {
     private static final String INDEX_FILE_NAME = "ss.index";
 
-    private final MappedByteBuffer mappedTable;
-    private final MappedByteBuffer mappedIndex;
+    private final MemorySegment tableMemorySegment;
+    private final MemorySegment indexMemorySegment;
+    private final long sizeBytes;
 
-    public Index(Path path, MappedByteBuffer mappedTable) throws IOException {
+    public Index(Path path, MemorySegment mappedTable) throws IOException {
         final Path file = path.resolve(INDEX_FILE_NAME);
         if (Files.notExists(file)) {
             throw new IllegalStateException("File should exists " + file);
         }
 
-        FileChannel fileChannel = FileChannel.open(file, Utils.READ_OPEN_OPTIONS);
-        this.mappedIndex = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
-        this.mappedTable = mappedTable;
+        this.sizeBytes = Files.size(file);
+        this.indexMemorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                this.sizeBytes,
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.globalScope()
+        );
+        this.tableMemorySegment = mappedTable;
     }
 
-    public Index(Path path, Collection<Integer> position, MappedByteBuffer mappedTable) throws IOException {
+    public Index(Path path, Collection<Long> position, MemorySegment mappedTable) throws IOException {
         final Path file = path.resolve(INDEX_FILE_NAME);
         if (Files.notExists(file)) {
             Files.createFile(file);
         }
 
         flush(file, position);
-        FileChannel fileChannel = FileChannel.open(file, Utils.READ_OPEN_OPTIONS);
 
-        this.mappedTable = mappedTable;
-        this.mappedIndex = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
+        this.sizeBytes = (long) position.size() * Long.BYTES;
+        this.tableMemorySegment = mappedTable;
+        this.indexMemorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                this.sizeBytes,
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.globalScope()
+        );
     }
 
-    private static ByteBuffer toByteBuffer(Collection<Integer> positions) {
-        final ByteBuffer buffer = ByteBuffer.allocate(positions.size() * Integer.BYTES);
-        for (int pos : positions) {
-            buffer.putInt(pos);
+    private static void flush(Path file, Collection<Long> positions) throws IOException {
+        final MemorySegment memorySegment = MemorySegment.mapFile(file,
+                0,
+                (long) positions.size() * Long.BYTES,
+                FileChannel.MapMode.READ_WRITE,
+                ResourceScope.globalScope()
+        );
+
+        long offset = 0;
+        for (long pos : positions) {
+            MemoryAccess.setLongAtOffset(memorySegment, offset, pos);
+            offset += Long.BYTES;
         }
-        buffer.flip();
 
-        return buffer;
+        memorySegment.force();
     }
 
-    private static void flush(Path file, Collection<Integer> positions) throws IOException {
-        final ByteBuffer buffer = toByteBuffer(positions);
-        try (FileChannel indexFC = FileChannel.open(file, Utils.APPEND_OPEN_OPTIONS)) {
-            indexFC.write(buffer);
-        }
-    }
+    public long getKeyPosition(OSXMemorySegment key) {
+        try {
+            indexMemorySegment.load();
+            tableMemorySegment.load();
+            if (key == null) {
+                return -1;
+            }
 
-    public int getKeyPosition(ByteBuffer key) {
-        if (key == null) {
+            long left = 0;
+            long right = sizeBytes / Long.BYTES;
+            while (right >= left) {
+                final long mid = left + (right - left) / 2;
+
+                final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
+                final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
+
+                final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
+                final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
+
+                if (compareResult == 0) {
+                    return keyPosition;
+                }
+
+                if (compareResult < 0) {
+                    right = mid - 1;
+                }
+
+                if (compareResult > 0) {
+                    left = mid + 1;
+                }
+            }
+
             return -1;
+        } finally {
+            indexMemorySegment.unload();
+            tableMemorySegment.unload();
         }
-
-        int left = 0;
-        int right = mappedIndex.position(0).limit();
-        while (right >= left) {
-            final int mid = getMidPosition(left, right);
-            final int keyPosition = mappedIndex.position(mid).getInt();
-            final int keySize = mappedTable.position(keyPosition).getInt();
-
-            final ByteBuffer foundKey = mappedTable.slice(mappedTable.position(), keySize);
-            final int compareResult = key.compareTo(foundKey);
-
-            if (compareResult == 0) {
-                return keyPosition;
-            }
-
-            if (compareResult < 0) {
-                right = mid - Integer.BYTES;
-            }
-
-            if (compareResult > 0) {
-                left = mid + Integer.BYTES;
-            }
-        }
-
-        return -1;
-    }
-
-    private int getMidPosition(int left, int right) {
-        int recordAmount = (right - left) / Integer.BYTES;
-
-        return left + (recordAmount / 2) * Integer.BYTES;
     }
 }
