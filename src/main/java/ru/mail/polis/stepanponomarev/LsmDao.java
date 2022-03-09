@@ -44,7 +44,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
             iterators.add(memTable.subMap(from, to).values().iterator());
         }
 
-        return MergeIterator.instanceOf(iterators);
+        return MergedIterator.instanceOf(iterators);
     }
 
     @Override
