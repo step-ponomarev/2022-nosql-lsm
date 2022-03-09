@@ -51,14 +51,27 @@ public class SSTable implements Closeable {
     }
 
     public Iterator<Entry<ByteBuffer>> get(ByteBuffer from, ByteBuffer to) throws IOException {
-        final long size = readChannel.size();
+        final int size = (int) readChannel.size();
         if (size == 0) {
             return Collections.emptyIterator();
         }
 
-        MappedByteBuffer mappedTable = readChannel.map(FileChannel.MapMode.READ_ONLY, 0, size);
+        final MappedByteBuffer mappedTable = readChannel.map(FileChannel.MapMode.READ_ONLY, 0, size);
+        final int fromPosition = getKeyPositionOrDefault(from, mappedTable, 0);
+        final int toPosition = getKeyPositionOrDefault(to, mappedTable, size);
 
-        return new MappedIterator(index.sliceTable(from, to, mappedTable));
+        return new MappedIterator(
+                mappedTable.slice(fromPosition, toPosition - fromPosition)
+        );
+    }
+
+    private int getKeyPositionOrDefault(ByteBuffer key, MappedByteBuffer mappedTable, int defaultPosition) throws IOException {
+        final int keyPosition = index.getKeyPosition(key, mappedTable);
+        if (keyPosition == -1) {
+            return defaultPosition;
+        }
+
+        return keyPosition;
     }
 
     private static ByteBuffer toByteBuffer(Entry<ByteBuffer> entry) {

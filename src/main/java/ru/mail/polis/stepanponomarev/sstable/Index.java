@@ -42,13 +42,9 @@ class Index implements Closeable {
         }
     }
 
-    public MappedByteBuffer sliceTable(
-            ByteBuffer from,
-            ByteBuffer to,
-            MappedByteBuffer mappedTable
-    ) throws IOException {
-        if (from == null && to == null) {
-            return mappedTable;
+    public int getKeyPosition(ByteBuffer key, MappedByteBuffer mappedTable) throws IOException {
+        if (key == null) {
+            return -1;
         }
 
         final int indexChannelSize = (int) readChannel.size();
@@ -60,18 +56,7 @@ class Index implements Closeable {
             positions[i] = index.getInt();
         }
 
-        final int size = mappedTable.limit();
-        int fromPosition = findKeyPosition(positions, from, mappedTable);
-        if (fromPosition == -1) {
-            fromPosition = 0;
-        }
-
-        int toPosition = findKeyPosition(positions, to, mappedTable);
-        if (toPosition == -1) {
-            toPosition = size;
-        }
-
-        return mappedTable.slice(fromPosition, toPosition - fromPosition);
+        return findKeyPosition(positions, key, mappedTable);
     }
 
     private static int findKeyPosition(int[] positions, ByteBuffer key, MappedByteBuffer mappedTable) {
