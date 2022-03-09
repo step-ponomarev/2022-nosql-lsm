@@ -8,15 +8,15 @@ import java.nio.MappedByteBuffer;
 import java.util.Iterator;
 
 final class MappedIterator implements Iterator<Entry<ByteBuffer>> {
-    final MappedByteBuffer mappedTable;
+    private final MappedByteBuffer mappedTable;
 
     public MappedIterator(MappedByteBuffer mappedByteBuffer) {
-        this.mappedTable = mappedByteBuffer;
+        mappedTable = mappedByteBuffer;
     }
 
     @Override
     public boolean hasNext() {
-        return this.mappedTable.position() != this.mappedTable.limit();
+        return mappedTable.position() != mappedTable.limit();
     }
 
     @Override
