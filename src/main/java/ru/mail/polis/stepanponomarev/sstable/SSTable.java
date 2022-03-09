@@ -120,8 +120,6 @@ public final class SSTable {
             currentOffset += valueSize;
         }
 
-        memorySegment.force();
-
         return positionList;
     }
 

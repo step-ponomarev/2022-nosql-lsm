@@ -72,41 +72,34 @@ final class Index {
     }
 
     public long getKeyPosition(OSXMemorySegment key) {
-        try {
-            indexMemorySegment.load();
-            tableMemorySegment.load();
-            if (key == null) {
-                return -1;
-            }
-
-            long left = 0;
-            long right = sizeBytes / Long.BYTES;
-            while (right >= left) {
-                final long mid = left + (right - left) / 2;
-
-                final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
-                final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
-
-                final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
-                final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
-
-                if (compareResult == 0) {
-                    return keyPosition;
-                }
-
-                if (compareResult < 0) {
-                    right = mid - 1;
-                }
-
-                if (compareResult > 0) {
-                    left = mid + 1;
-                }
-            }
-
+        if (key == null) {
             return -1;
-        } finally {
-            indexMemorySegment.unload();
-            tableMemorySegment.unload();
         }
+
+        long left = 0;
+        long right = sizeBytes / Long.BYTES;
+        while (right >= left) {
+            final long mid = left + (right - left) / 2;
+
+            final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
+            final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
+
+            final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
+            final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
+
+            if (compareResult == 0) {
+                return keyPosition;
+            }
+
+            if (compareResult < 0) {
+                right = mid - 1;
+            }
+
+            if (compareResult > 0) {
+                left = mid + 1;
+            }
+        }
+
+        return -1;
     }
 }

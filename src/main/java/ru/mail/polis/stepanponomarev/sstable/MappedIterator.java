@@ -15,17 +15,11 @@ final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
     public MappedIterator(MemorySegment segment) {
         memorySegment = segment;
         position = 0;
-        memorySegment.load();
     }
 
     @Override
     public boolean hasNext() {
-        boolean hasNext = memorySegment.byteSize() != position;
-        if (!hasNext) {
-            memorySegment.unload();
-        }
-
-        return hasNext;
+        return memorySegment.byteSize() != position;
     }
 
     @Override
