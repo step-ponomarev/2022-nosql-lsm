@@ -1,5 +1,6 @@
 package ru.mail.polis.test.stepanponomarev;
 
+import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Config;
