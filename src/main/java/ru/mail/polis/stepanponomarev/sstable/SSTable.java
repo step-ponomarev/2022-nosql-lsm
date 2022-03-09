@@ -65,10 +65,10 @@ public class SSTable implements Closeable {
         );
     }
 
-    private int getKeyPositionOrDefault(ByteBuffer key, MappedByteBuffer mappedTable, int defaultPosition) throws IOException {
+    private int getKeyPositionOrDefault(ByteBuffer key, MappedByteBuffer mappedTable, int position) throws IOException {
         final int keyPosition = index.getKeyPosition(key, mappedTable);
         if (keyPosition == -1) {
-            return defaultPosition;
+            return position;
         }
 
         return keyPosition;
