@@ -58,10 +58,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
             Files.createDirectory(ssTableDir);
         }
 
-        final SSTable ssTable = new SSTable(ssTableDir);
-        ssTable.flush(memTable.values().iterator());
-
-        ssTalbes.add(ssTable);
+        ssTalbes.add(SSTable.createInstance(ssTableDir, memTable.values().iterator()));
         memTable.clear();
     }
 
@@ -74,7 +71,7 @@ public class LsmDao implements Dao<ByteBuffer, Entry<ByteBuffer>> {
         final int ssTableAmount = dirList == null ? 0 : dirList.length;
         final List<SSTable> tables = new ArrayList<>(ssTableAmount);
         for (int i = 0; i < ssTableAmount; i++) {
-            tables.add(new SSTable(path.resolve(SSTABLE_DIR_NAME + i)));
+            tables.add(SSTable.upInstance(path.resolve(SSTABLE_DIR_NAME + i)));
         }
 
         return tables;

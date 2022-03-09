@@ -8,12 +8,10 @@ final class Utils {
 
     public static final EnumSet<StandardOpenOption> APPEND_OPEN_OPTIONS = EnumSet.of(
             StandardOpenOption.APPEND,
-            StandardOpenOption.CREATE,
             StandardOpenOption.WRITE
     );
 
     public static final EnumSet<StandardOpenOption> READ_OPEN_OPTIONS = EnumSet.of(
-            StandardOpenOption.CREATE,
             StandardOpenOption.READ
     );
 
