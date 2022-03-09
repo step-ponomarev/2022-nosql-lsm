@@ -7,14 +7,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-final class MergeIterator<T extends Comparable<T>, E extends Entry<T>> implements Iterator<E> {
+final class MergedIterator<T extends Comparable<T>, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> firstIter;
     private final Iterator<E> secondIter;
 
     private E firstRecord;
     private E secondRecord;
 
-    private MergeIterator(final Iterator<E> left, final Iterator<E> right) {
+    private MergedIterator(final Iterator<E> left, final Iterator<E> right) {
         firstIter = right;
         secondIter = left;
 
@@ -32,7 +32,7 @@ final class MergeIterator<T extends Comparable<T>, E extends Entry<T>> implement
             return iterators.get(0);
         }
 
-        return new MergeIterator<>(
+        return new MergedIterator<>(
                 instanceOf(iterators.subList(0, size / 2)),
                 instanceOf(iterators.subList(size / 2, size))
         );
