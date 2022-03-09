@@ -12,8 +12,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
@@ -22,7 +20,6 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     private final List<SSTable> store;
     private final SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> memTable = new ConcurrentSkipListMap<>();
 
-    private final Object sizeCounterLock = new Object();
     private volatile long memTableSize = 0;
 
     public LsmDao(Path bathPath) throws IOException {
@@ -51,15 +48,13 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     }
 
     @Override
-    public void upsert(Entry<OSXMemorySegment> entry) {
-        synchronized (sizeCounterLock) {
-            memTable.put(entry.key(), entry);
-            memTableSize += entry.key().getMemorySegment().byteSize() + Long.BYTES * 2;
+    public synchronized void upsert(Entry<OSXMemorySegment> entry) {
+        memTable.put(entry.key(), entry);
+        memTableSize += entry.key().getMemorySegment().byteSize() + Long.BYTES * 2;
 
-            final OSXMemorySegment value = entry.value();
-            if (value != null) {
-                memTableSize += value.getMemorySegment().byteSize();
-            }
+        final OSXMemorySegment value = entry.value();
+        if (value != null) {
+            memTableSize += value.getMemorySegment().byteSize();
         }
     }
 
@@ -70,16 +65,10 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
             Files.createDirectory(dir);
         }
 
-        final Future<SSTable> sstableCreation = Executors.newSingleThreadExecutor().
-                submit(() -> SSTable.createInstance(dir, memTable.values().iterator(), memTableSize));
-        try {
-            store.add(sstableCreation.get());
-            synchronized (sizeCounterLock) {
-                memTable.clear();
-                memTableSize = 0;
-            }
-        } catch (Exception e) {
-            throw new IOException("Something wrong with flush.");
+        store.add(SSTable.createInstance(dir, memTable.values().iterator(), memTableSize));
+        synchronized (this) {
+            memTable.clear();
+            memTableSize = 0;
         }
     }
 
