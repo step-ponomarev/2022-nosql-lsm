@@ -32,14 +32,10 @@ final class MergeIterator<T extends Comparable<T>, E extends Entry<T>> implement
             return iterators.get(0);
         }
 
-        return merge(
+        return new MergeIterator<>(
                 instanceOf(iterators.subList(0, size / 2)),
                 instanceOf(iterators.subList(size / 2, size))
         );
-    }
-
-    private static <T extends Comparable<T>, E extends Entry<T>> Iterator<E> merge(Iterator<E> l, Iterator<E> r) {
-        return new MergeIterator<>(l, r);
     }
 
     @Override

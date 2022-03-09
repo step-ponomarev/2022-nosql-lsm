@@ -1,4 +1,4 @@
-package ru.mail.polis.stepanponomarev.SSTable;
+package ru.mail.polis.stepanponomarev.sstable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -42,7 +42,11 @@ class Index implements Closeable {
         }
     }
 
-    public MappedByteBuffer sliceTable(ByteBuffer from, ByteBuffer to, MappedByteBuffer mappedTable) throws IOException {
+    public MappedByteBuffer sliceTable(
+            ByteBuffer from,
+            ByteBuffer to,
+            MappedByteBuffer mappedTable
+    ) throws IOException {
         if (from == null && to == null) {
             return mappedTable;
         }
@@ -57,12 +61,12 @@ class Index implements Closeable {
         }
 
         final int size = mappedTable.limit();
-        int fromPosition = findKeyPosition(mappedTable, from, positions);
+        int fromPosition = findKeyPosition(positions, from, mappedTable);
         if (fromPosition == -1) {
             fromPosition = 0;
         }
 
-        int toPosition = findKeyPosition(mappedTable, to, positions);
+        int toPosition = findKeyPosition(positions, to, mappedTable);
         if (toPosition == -1) {
             toPosition = size;
         }
@@ -70,7 +74,7 @@ class Index implements Closeable {
         return mappedTable.slice(fromPosition, toPosition - fromPosition);
     }
 
-    private static int findKeyPosition(MappedByteBuffer mappedTable, ByteBuffer key, int[] positions) {
+    private static int findKeyPosition(int[] positions, ByteBuffer key, MappedByteBuffer mappedTable) {
         if (key == null) {
             return -1;
         }

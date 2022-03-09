@@ -1,6 +1,5 @@
-package ru.mail.polis.stepanponomarev.SSTable;
+package ru.mail.polis.stepanponomarev.sstable;
 
-import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
 import java.io.Closeable;

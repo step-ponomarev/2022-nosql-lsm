@@ -1,4 +1,4 @@
-package ru.mail.polis.stepanponomarev.SSTable;
+package ru.mail.polis.stepanponomarev.sstable;
 
 import java.nio.file.StandardOpenOption;
 import java.util.EnumSet;

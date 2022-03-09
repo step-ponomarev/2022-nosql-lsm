@@ -1,4 +1,4 @@
-package ru.mail.polis.stepanponomarev.SSTable;
+package ru.mail.polis.stepanponomarev.sstable;
 
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
@@ -24,7 +24,6 @@ class MappedIterator implements Iterator<Entry<ByteBuffer>> {
         final int keySize = mappedByteBuffer.getInt();
         final ByteBuffer key = mappedByteBuffer.slice(mappedByteBuffer.position(), keySize);
         mappedByteBuffer.position(mappedByteBuffer.position() + keySize);
-
 
         final int valueSize = mappedByteBuffer.getInt();
         if (valueSize == Utils.TOMBSTONE_TAG) {

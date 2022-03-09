@@ -2,7 +2,7 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.SSTable.SSTable;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
