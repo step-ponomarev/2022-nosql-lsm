@@ -60,46 +60,43 @@ class Index {
             return -1;
         }
 
-        mappedIndex.position(0);
-
-        final int indexChannelSize = mappedIndex.limit();
-        final int positionAmount = indexChannelSize / Integer.BYTES;
-
-        final int[] positions = new int[positionAmount];
-        for (int i = 0; i < positionAmount; i++) {
-            positions[i] = mappedIndex.getInt();
-        }
-
-        return findKeyPosition(positions, key, mappedTable);
+        return findKeyPosition(key);
     }
 
-    private static int findKeyPosition(int[] positions, ByteBuffer key, MappedByteBuffer mappedTable) {
+    private int findKeyPosition(ByteBuffer key) {
         if (key == null) {
             return -1;
         }
 
         int left = 0;
-        int right = positions.length;
+        int right = mappedIndex.position(0).limit();
         while (right >= left) {
-            final int mid = left + (right - left) / 2;
-            final int keySize = mappedTable.position(positions[mid]).getInt();
-            final ByteBuffer foundKey = mappedTable.slice(mappedTable.position(), keySize);
+            final int mid = getMidPosition(left, right);
+            final int keyPosition = mappedIndex.position(mid).getInt();
+            final int keySize = mappedTable.position(keyPosition).getInt();
 
+            final ByteBuffer foundKey = mappedTable.slice(mappedTable.position(), keySize);
             final int compareResult = key.compareTo(foundKey);
 
             if (compareResult == 0) {
-                return positions[mid];
+                return keyPosition;
             }
 
             if (compareResult < 0) {
-                right = mid - 1;
+                right = mid - Integer.BYTES;
             }
 
             if (compareResult > 0) {
-                left = mid + 1;
+                left = mid + Integer.BYTES;
             }
         }
 
         return -1;
+    }
+
+    private int getMidPosition(int left, int right) {
+        int recordAmount = (right - left) / Integer.BYTES;
+
+        return left + (recordAmount / 2) * Integer.BYTES;
     }
 }
