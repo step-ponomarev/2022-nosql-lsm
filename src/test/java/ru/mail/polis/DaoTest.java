@@ -1,6 +1,5 @@
 package ru.mail.polis;
 
-import jdk.incubator.foreign.MemorySegment;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ConditionEvaluationResult;
 import org.junit.jupiter.api.extension.ExecutionCondition;
@@ -10,7 +9,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
