@@ -3,6 +3,7 @@ package ru.mail.polis.stepanponomarev;
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 
+import java.util.Arrays;
 import java.util.Comparator;
 
 public class OSXMemorySegment implements Comparable<OSXMemorySegment> {
@@ -30,7 +31,11 @@ public class OSXMemorySegment implements Comparable<OSXMemorySegment> {
 
     @Override
     public int hashCode() {
-        return memorySegment.hashCode();
+        if (memorySegment.byteSize() <= Long.BYTES) {
+            return Arrays.hashCode(memorySegment.toByteArray());
+        }
+
+        return Long.hashCode(MemoryAccess.getLong(memorySegment));
     }
 
     @Override
@@ -44,7 +49,7 @@ public class OSXMemorySegment implements Comparable<OSXMemorySegment> {
             return true;
         }
 
-        if (!(obj instanceof OSXMemorySegment)) {
+        if (!(obj instanceof OSXMemorySegment) || hashCode() != obj.hashCode()) {
             return false;
         }
 
