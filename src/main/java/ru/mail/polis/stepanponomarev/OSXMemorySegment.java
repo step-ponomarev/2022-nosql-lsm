@@ -3,14 +3,22 @@ package ru.mail.polis.stepanponomarev;
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 
-import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 
-public class OSXMemorySegment implements Comparable<OSXMemorySegment> {
+public final class OSXMemorySegment implements Comparable<OSXMemorySegment> {
     private static final Comparator<MemorySegment> comparator = (MemorySegment m1, MemorySegment m2) -> {
         final long mismatch = m1.mismatch(m2);
         if (mismatch == -1) {
             return 0;
+        }
+
+        if (mismatch == m1.byteSize()) {
+            return -1;
+        }
+
+        if (mismatch == m2.byteSize()) {
+            return 1;
         }
 
         return Byte.compare(
@@ -31,11 +39,10 @@ public class OSXMemorySegment implements Comparable<OSXMemorySegment> {
 
     @Override
     public int hashCode() {
-        if (memorySegment.byteSize() <= Long.BYTES) {
-            return Arrays.hashCode(memorySegment.toByteArray());
-        }
-
-        return Long.hashCode(MemoryAccess.getLong(memorySegment));
+        return Objects.hash(
+                memorySegment.address().segmentOffset(memorySegment),
+                memorySegment.byteSize()
+        );
     }
 
     @Override
