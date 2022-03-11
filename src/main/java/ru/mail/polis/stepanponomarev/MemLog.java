@@ -25,13 +25,13 @@ public class MemLog {
 
     public MemLog(Path path, long size) throws IOException {
         logFile = path.resolve(FILE_NAME);
-        final boolean fileNotExists = Files.notExists(logFile);
-        if (fileNotExists) {
+        final boolean newFile = Files.notExists(logFile);
+        if (newFile) {
             Files.createFile(logFile);
         }
 
         logMemorySegment = createSegment((long) (size * BUFFER_DELTA));
-        writeOffset = fileNotExists
+        writeOffset = newFile
                 ? new AtomicLong(START_OFFSET)
                 : new AtomicLong(MemoryAccess.getLong(logMemorySegment));
     }
