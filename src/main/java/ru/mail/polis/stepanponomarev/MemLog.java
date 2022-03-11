@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class MemLog {
     private static final String FILE_NAME = "sstable.log";
@@ -21,7 +20,6 @@ public class MemLog {
     private final Path logFile;
 
     private MemorySegment logMemorySegment;
-    private final AtomicLong writeOffset;
 
     public MemLog(Path path, long size) throws IOException {
         logFile = path.resolve(FILE_NAME);
@@ -31,32 +29,30 @@ public class MemLog {
         }
 
         logMemorySegment = createSegment((long) (size * BUFFER_DELTA));
-        writeOffset = newFile
-                ? new AtomicLong(START_OFFSET)
-                : new AtomicLong(MemoryAccess.getLong(logMemorySegment));
+        if (newFile) {
+            MemoryAccess.setLong(logMemorySegment, START_OFFSET);
+        }
     }
 
     public Iterator<Entry<OSXMemorySegment>> load() {
-        if (writeOffset.get() == START_OFFSET) {
+        final long offset = MemoryAccess.getLong(logMemorySegment);
+        if (offset == START_OFFSET) {
             return Collections.emptyIterator();
         }
 
-        return new MappedIterator(logMemorySegment.asSlice(START_OFFSET, writeOffset.get()));
+        return new MappedIterator(logMemorySegment.asSlice(START_OFFSET, offset));
     }
 
     public void log(Entry<OSXMemorySegment> entry) throws IOException {
-        synchronized (this) {
-            if (writeOffset.get() >= logMemorySegment.byteSize() / 1.2) {
-                logMemorySegment = createSegment((long) (writeOffset.get() * BUFFER_DELTA));
-            }
+        final long offset = MemoryAccess.getLong(logMemorySegment);
+        if (offset >= logMemorySegment.byteSize() / 1.2) {
+            logMemorySegment = createSegment((long) (offset * BUFFER_DELTA));
         }
 
-        writeOffset.set(Utils.flush(entry, logMemorySegment, writeOffset.get()));
-        MemoryAccess.setLong(logMemorySegment, writeOffset.get());
+        MemoryAccess.setLong(logMemorySegment, Utils.flush(entry, logMemorySegment, offset));
     }
 
     public void clean() {
-        writeOffset.set(START_OFFSET);
         MemoryAccess.setLong(logMemorySegment, START_OFFSET);
     }
 

@@ -43,7 +43,10 @@ public final class MemTable {
         final Entry<OSXMemorySegment> addedEntry = store.put(key, entry);
         final long addedByteSize = Utils.sizeOf(entry) - (oldElement == null ? 0 : oldElement.value().size());
 
-        sizeBytes.addAndGet(addedByteSize);
+        long size;
+        do {
+            size = sizeBytes.get();
+        } while (!sizeBytes.compareAndSet(size, addedByteSize + size));
 
         return addedEntry;
     }
@@ -64,7 +67,11 @@ public final class MemTable {
         MemTable memTable = new MemTable(store, sizeBytes.get());
 
         store = new ConcurrentSkipListMap<>();
-        sizeBytes.set(0);
+
+        long size;
+        do {
+            size = sizeBytes.get();
+        } while (!sizeBytes.compareAndSet(size, 0));
 
         return memTable;
     }
