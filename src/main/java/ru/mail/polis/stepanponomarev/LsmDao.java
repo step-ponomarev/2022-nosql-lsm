@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
@@ -36,7 +37,6 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
         return MergedIterator.instanceOf(iterators);
     }
 
-
     @Override
     public void upsert(Entry<OSXMemorySegment> entry) {
         memTable.put(entry.key(), entry);
@@ -58,15 +58,17 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
             return new ArrayList<>();
         }
 
-        final long ssTableCount = Files.list(path)
-                .map(f -> f.getFileName().toString())
-                .filter(n -> n.contains(SSTABLE_DIR_NAME))
-                .count();
-        final List<SSTable> tables = new ArrayList<>();
-        for (long i = 0; i < ssTableCount; i++) {
-            tables.add(SSTable.upInstance(path.resolve(SSTABLE_DIR_NAME + i)));
-        }
+        try (Stream<Path> files = Files.list(path)) {
+            final long ssTableCount = files
+                    .map(f -> f.getFileName().toString())
+                    .filter(n -> n.contains(SSTABLE_DIR_NAME))
+                    .count();
+            final List<SSTable> tables = new ArrayList<>();
+            for (long i = 0; i < ssTableCount; i++) {
+                tables.add(SSTable.upInstance(path.resolve(SSTABLE_DIR_NAME + i)));
+            }
 
-        return tables;
+            return tables;
+        }
     }
 }
