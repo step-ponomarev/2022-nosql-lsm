@@ -2,7 +2,6 @@ package ru.mail.polis.stepanponomarev;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.Entry;
 
 import java.util.Comparator;
 import java.util.Objects;
