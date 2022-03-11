@@ -11,63 +11,20 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 public final class SSTable {
     public static final int TOMBSTONE_TAG = -1;
-
     private static final String FILE_NAME = "ss.data";
 
-    private final MemorySegment memorySegment;
     private final Index index;
-    private final long sizeBytes;
+    private final MemorySegment tableMemorySegment;
 
-    private SSTable(Path path) throws IOException {
-        final Path file = path.resolve(FILE_NAME);
-        if (Files.notExists(file)) {
-            throw new IllegalStateException("File should exists " + file);
-        }
-
-        sizeBytes = Files.size(file);
-        memorySegment = MemorySegment.mapFile(
-                file,
-                0,
-                sizeBytes,
-                FileChannel.MapMode.READ_ONLY,
-                ResourceScope.globalScope()
-        );
-        index = new Index(path, memorySegment);
-    }
-
-    private SSTable(Path path, Iterator<Entry<OSXMemorySegment>> data, long size) throws IOException {
-        final Path file = path.resolve(FILE_NAME);
-        if (Files.notExists(file)) {
-            Files.createFile(file);
-        }
-
-        final Collection<Long> positions = flushAndAndGetPositions(file, data, size);
-
-        sizeBytes = size;
-        memorySegment = MemorySegment.mapFile(
-                file,
-                0,
-                sizeBytes,
-                FileChannel.MapMode.READ_ONLY,
-                ResourceScope.globalScope()
-        );
-
-        index = new Index(path, positions, memorySegment);
-    }
-
-    public static SSTable upInstance(Path path) throws IOException {
-        if (Files.notExists(path)) {
-            throw new IllegalArgumentException("Directory" + path + " is not exits.");
-        }
-
-        return new SSTable(path);
+    private SSTable(Index index, MemorySegment tableMemorySegment) {
+        this.index = index;
+        this.tableMemorySegment = tableMemorySegment;
     }
 
     public static SSTable createInstance(
@@ -75,10 +32,43 @@ public final class SSTable {
             Iterator<Entry<OSXMemorySegment>> data,
             long size
     ) throws IOException {
-        return new SSTable(path, data, size);
+        final Path file = path.resolve(FILE_NAME);
+        Files.createFile(file);
+
+        final long[] positions = flushAndAndGetPositions(file, data, size);
+        final MemorySegment tableMemorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                size,
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.newConfinedScope()
+        );
+
+        return new SSTable(
+                Index.createInstance(path, positions, tableMemorySegment),
+                tableMemorySegment
+        );
     }
 
-    private static Collection<Long> flushAndAndGetPositions(
+    public static SSTable upInstance(Path path) throws IOException {
+        final Path file = path.resolve(FILE_NAME);
+        if (Files.notExists(path)) {
+            throw new IllegalArgumentException("File" + path + " is not exits.");
+        }
+
+        final MemorySegment memorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                Files.size(file),
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.newSharedScope()
+        );
+        final Index index = Index.upInstance(path, memorySegment);
+
+        return new SSTable(index, memorySegment);
+    }
+
+    private static long[] flushAndAndGetPositions(
             Path file,
             Iterator<Entry<OSXMemorySegment>> data,
             long sizeBytes
@@ -89,7 +79,7 @@ public final class SSTable {
                 0,
                 sizeBytes,
                 FileChannel.MapMode.READ_WRITE,
-                ResourceScope.globalScope()
+                ResourceScope.newSharedScope()
         );
 
         long currentOffset = 0;
@@ -120,18 +110,24 @@ public final class SSTable {
             currentOffset += valueSize;
         }
 
-        return positionList;
+        final long[] positions = new long[positionList.size()];
+        for (int i = 0; i < positionList.size(); i++) {
+            positions[i] = positionList.get(i);
+        }
+
+        return positions;
     }
 
     public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
-        if (sizeBytes == 0) {
+        final long size = tableMemorySegment.byteSize();
+        if (size == 0) {
             return Collections.emptyIterator();
         }
 
         final long fromPosition = getKeyPositionOrDefault(from, 0);
-        final long toPosition = getKeyPositionOrDefault(to, sizeBytes);
+        final long toPosition = getKeyPositionOrDefault(to, size);
 
-        return new MappedIterator(memorySegment.asSlice(fromPosition, toPosition - fromPosition));
+        return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
 
     private long getKeyPositionOrDefault(OSXMemorySegment key, long defaultPosition) {

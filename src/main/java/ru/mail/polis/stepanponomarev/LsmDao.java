@@ -35,17 +35,26 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
             iterators.add(table.get(from, to));
         }
 
-        if (from == null && to == null) {
-            iterators.add(memTable.values().iterator());
-        } else if (from == null) {
-            iterators.add(memTable.headMap(to).values().iterator());
-        } else if (to == null) {
-            iterators.add(memTable.tailMap(from).values().iterator());
-        } else {
-            iterators.add(memTable.subMap(from, to).values().iterator());
-        }
+        final Iterator<Entry<OSXMemorySegment>> memTableIterator = getMemTableIterator(from, to);
+        iterators.add(memTableIterator);
 
         return MergedIterator.instanceOf(iterators);
+    }
+
+    private Iterator<Entry<OSXMemorySegment>> getMemTableIterator(OSXMemorySegment from, OSXMemorySegment to) {
+        if (from == null && to == null) {
+            return memTable.values().iterator();
+        }
+
+        if (from == null) {
+            return memTable.headMap(to).values().iterator();
+        }
+
+        if (to == null) {
+            return memTable.tailMap(from).values().iterator();
+        }
+
+        return memTable.subMap(from, to).values().iterator();
     }
 
     @Override

@@ -9,57 +9,61 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 
 final class Index {
-    private static final String INDEX_FILE_NAME = "ss.index";
+    private static final String FILE_NAME = "ss.index";
 
     private final MemorySegment tableMemorySegment;
     private final MemorySegment indexMemorySegment;
-    private final long sizeBytes;
 
-    public Index(Path path, MemorySegment mappedTable) throws IOException {
-        final Path file = path.resolve(INDEX_FILE_NAME);
-        if (Files.notExists(file)) {
-            throw new IllegalStateException("File should exists " + file);
-        }
-
-        this.sizeBytes = Files.size(file);
-        this.indexMemorySegment = MemorySegment.mapFile(
-                file,
-                0,
-                this.sizeBytes,
-                FileChannel.MapMode.READ_ONLY,
-                ResourceScope.globalScope()
-        );
+    private Index(MemorySegment mappedIndex, MemorySegment mappedTable) {
+        this.indexMemorySegment = mappedIndex;
         this.tableMemorySegment = mappedTable;
     }
 
-    public Index(Path path, Collection<Long> position, MemorySegment mappedTable) throws IOException {
-        final Path file = path.resolve(INDEX_FILE_NAME);
+    public static Index upInstance(Path path, MemorySegment tableMemorySegment) throws IOException {
+        final Path file = path.resolve(FILE_NAME);
         if (Files.notExists(file)) {
-            Files.createFile(file);
+            throw new IllegalArgumentException("File" + path + " is not exits.");
         }
 
-        flush(file, position);
-
-        this.sizeBytes = (long) position.size() * Long.BYTES;
-        this.tableMemorySegment = mappedTable;
-        this.indexMemorySegment = MemorySegment.mapFile(
+        final MemorySegment indexMemorySegment = MemorySegment.mapFile(
                 file,
                 0,
-                this.sizeBytes,
+                Files.size(file),
                 FileChannel.MapMode.READ_ONLY,
-                ResourceScope.globalScope()
+                ResourceScope.newSharedScope()
         );
+
+        return new Index(indexMemorySegment, tableMemorySegment);
     }
 
-    private static void flush(Path file, Collection<Long> positions) throws IOException {
+    public static Index createInstance(
+            Path path,
+            long[] positions,
+            MemorySegment tableMemorySegment
+    ) throws IOException {
+        final Path file = path.resolve(FILE_NAME);
+        Files.createFile(file);
+        flush(file, positions);
+
+        final MemorySegment indexMemorySegment = MemorySegment.mapFile(
+                file,
+                0,
+                (long) positions.length * Long.BYTES,
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.newSharedScope()
+        );
+
+        return new Index(indexMemorySegment, tableMemorySegment);
+    }
+
+    private static void flush(Path file, long[] positions) throws IOException {
         final MemorySegment memorySegment = MemorySegment.mapFile(file,
                 0,
-                (long) positions.size() * Long.BYTES,
+                (long) positions.length * Long.BYTES,
                 FileChannel.MapMode.READ_WRITE,
-                ResourceScope.globalScope()
+                ResourceScope.newSharedScope()
         );
 
         long offset = 0;
@@ -77,7 +81,7 @@ final class Index {
         }
 
         long left = 0;
-        long right = sizeBytes / Long.BYTES;
+        long right = indexMemorySegment.byteSize() / Long.BYTES;
         while (right >= left) {
             final long mid = left + (right - left) / 2;
 
