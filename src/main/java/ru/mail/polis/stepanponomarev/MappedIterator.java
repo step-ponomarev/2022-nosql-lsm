@@ -1,14 +1,13 @@
-package ru.mail.polis.stepanponomarev.sstable;
+package ru.mail.polis.stepanponomarev;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 
 import java.util.Iterator;
 
-final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
+public final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
     private final MemorySegment memorySegment;
     private long position;
 
@@ -33,7 +32,7 @@ final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
         final long valueSize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
-        if (valueSize == SSTable.TOMBSTONE_TAG) {
+        if (valueSize == Utils.TOMBSTONE_TAG) {
             return new BaseEntry<>(new OSXMemorySegment(key), null);
         }
 

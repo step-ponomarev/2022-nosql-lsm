@@ -11,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 final class Index {
-    private static final String FILE_NAME = "ss.index";
+    private static final String FILE_NAME = "sstable.index";
 
     private final MemorySegment tableMemorySegment;
     private final MemorySegment indexMemorySegment;
@@ -81,7 +81,28 @@ final class Index {
         }
 
         long left = 0;
-        long right = indexMemorySegment.byteSize() / Long.BYTES;
+        long right = indexMemorySegment.byteSize() / Long.BYTES - 1;
+
+        final long minKeyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, left);
+        long size = MemoryAccess.getLongAtOffset(tableMemorySegment, minKeyPosition);
+        final OSXMemorySegment minKey = new OSXMemorySegment(
+                tableMemorySegment.asSlice(minKeyPosition + Long.BYTES, size)
+        );
+
+        if (key.compareTo(minKey) < 0) {
+            return -1;
+        }
+
+        final long maxKeyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, right);
+        size = MemoryAccess.getLongAtOffset(tableMemorySegment, maxKeyPosition);
+        final OSXMemorySegment maxKey = new OSXMemorySegment(
+                tableMemorySegment.asSlice(maxKeyPosition + Long.BYTES, size)
+        );
+
+        if (key.compareTo(maxKey) > 0) {
+            return -1;
+        }
+
         while (right >= left) {
             final long mid = left + (right - left) / 2;
 

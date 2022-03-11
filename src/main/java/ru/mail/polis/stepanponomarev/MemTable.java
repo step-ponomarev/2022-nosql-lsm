@@ -8,23 +8,44 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class MemTable {
-    private final SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> store = new ConcurrentSkipListMap<>();
-    private final AtomicLong sizeBytes = new AtomicLong(0);
+    private final AtomicLong sizeBytes;
+    private SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> store;
 
-    public Entry<OSXMemorySegment> put(OSXMemorySegment key, Entry<OSXMemorySegment> value) {
-        final Entry<OSXMemorySegment> oldElement = store.get(key);
+    public MemTable(Iterator<Entry<OSXMemorySegment>> initData) {
+        store = new ConcurrentSkipListMap<>();
+        sizeBytes = new AtomicLong(0);
 
-        synchronized (this) {
-            final Entry<OSXMemorySegment> entry = store.put(key, value);
+        long size = 0;
+        while (initData.hasNext()) {
+            final Entry<OSXMemorySegment> entry = initData.next();
+            store.put(entry.key(), entry);
 
-            final long addedByteSize = key.size()
-                    - (oldElement == null ? 0 : oldElement.value().size())
-                    + (value == null ? 0 : value.value().size());
-
-            sizeBytes.addAndGet(addedByteSize);
-
-            return entry;
+            size += Utils.sizeOf(entry);
         }
+
+        sizeBytes.set(size);
+    }
+
+    private MemTable(SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> store, long sizeBytes) {
+        this.sizeBytes = new AtomicLong(sizeBytes);
+        this.store = store;
+    }
+
+    public Entry<OSXMemorySegment> put(Entry<OSXMemorySegment> entry) {
+        final OSXMemorySegment key = entry.key();
+
+        final boolean empty = store.isEmpty();
+        Entry<OSXMemorySegment> oldElement = store.get(key);
+        if (empty != store.isEmpty()) {
+            oldElement = null;
+        }
+
+        final Entry<OSXMemorySegment> addedEntry = store.put(key, entry);
+        final long addedByteSize = Utils.sizeOf(entry) - (oldElement == null ? 0 : oldElement.value().size());
+
+        sizeBytes.addAndGet(addedByteSize);
+
+        return addedEntry;
     }
 
     public Iterator<Entry<OSXMemorySegment>> get() {
@@ -39,9 +60,13 @@ public final class MemTable {
         return store.size();
     }
 
-    public synchronized void clear() {
-        store.clear();
+    public MemTable getSnapshotAndClean() {
+        MemTable memTable = new MemTable(store, sizeBytes.get());
+
+        store = new ConcurrentSkipListMap<>();
         sizeBytes.set(0);
+
+        return memTable;
     }
 
     public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) {

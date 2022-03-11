@@ -5,23 +5,33 @@ import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
 public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
+    private static final long MAX_MEM_TABLE_SIZE_BYTES = 1_000_000;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
-    private final Path path;
+    private final MemLog logger;
     private final MemTable memTable;
-    private final List<SSTable> store;
+
+    private final Path path;
+    private final CopyOnWriteArrayList<SSTable> store;
 
     public LsmDao(Path bathPath) throws IOException {
+        if (Files.notExists(bathPath)) {
+            Files.createDirectory(bathPath);
+        }
+
         path = bathPath;
-        memTable = new MemTable();
+        logger = new MemLog(path, MAX_MEM_TABLE_SIZE_BYTES);
+        memTable = new MemTable(logger.load());
         store = createStore(path);
     }
 
@@ -39,31 +49,36 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
 
     @Override
     public void upsert(Entry<OSXMemorySegment> entry) {
-        memTable.put(entry.key(), entry);
+        try {
+            logger.log(entry);
+            memTable.put(entry);
+
+            if (memTable.sizeBytes() >= MAX_MEM_TABLE_SIZE_BYTES) {
+                flush();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
-    public void flush() throws IOException {
+    public synchronized void flush() throws IOException {
+        final MemTable snapshot = memTable.getSnapshotAndClean();
         final Path dir = path.resolve(SSTABLE_DIR_NAME + store.size());
-        if (Files.notExists(dir)) {
-            Files.createDirectory(dir);
-        }
+        Files.createDirectory(dir);
 
-        store.add(SSTable.createInstance(dir, memTable.get(), memTable.sizeBytes(), memTable.size()));
-        memTable.clear();
+        store.add(SSTable.createInstance(dir, snapshot.get(), snapshot.sizeBytes(), snapshot.size()));
+        logger.clean();
     }
 
-    private List<SSTable> createStore(Path path) throws IOException {
-        if (Files.notExists(path)) {
-            return new ArrayList<>();
-        }
-
+    private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {
         try (Stream<Path> files = Files.list(path)) {
             final long ssTableCount = files
                     .map(f -> f.getFileName().toString())
                     .filter(n -> n.contains(SSTABLE_DIR_NAME))
                     .count();
-            final List<SSTable> tables = new ArrayList<>();
+
+            final CopyOnWriteArrayList<SSTable> tables = new CopyOnWriteArrayList<>();
             for (long i = 0; i < ssTableCount; i++) {
                 tables.add(SSTable.upInstance(path.resolve(SSTABLE_DIR_NAME + i)));
             }
