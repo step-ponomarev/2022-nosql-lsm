@@ -58,7 +58,7 @@ final class Index {
         return new Index(indexMemorySegment, tableMemorySegment);
     }
 
-    private static void flush(Path file, long ...positions) throws IOException {
+    private static void flush(Path file, long...positions) throws IOException {
         final MemorySegment memorySegment = MemorySegment.mapFile(file,
                 0,
                 (long) positions.length * Long.BYTES,
