@@ -6,19 +6,15 @@ import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public final class MemTable {
-    private final Lock lock = new ReentrantLock();
     private final SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> memTable = new ConcurrentSkipListMap<>();
     private final AtomicLong sizeBytes = new AtomicLong(0);
 
     public Entry<OSXMemorySegment> put(OSXMemorySegment key, Entry<OSXMemorySegment> value) {
         final Entry<OSXMemorySegment> oldElement = memTable.get(key);
 
-        try {
-            lock.lock();
+        synchronized (this) {
             final Entry<OSXMemorySegment> entry = memTable.put(key, value);
 
             final long addedByteSize = key.size()
@@ -28,8 +24,6 @@ public final class MemTable {
             sizeBytes.addAndGet(addedByteSize);
 
             return entry;
-        } finally {
-            lock.unlock();
         }
     }
 
@@ -45,14 +39,9 @@ public final class MemTable {
         return memTable.size();
     }
 
-    public void clear() {
-        try {
-            lock.lock();
-            memTable.clear();
-            sizeBytes.set(0);
-        } finally {
-            lock.unlock();
-        }
+    public synchronized void clear() {
+        memTable.clear();
+        sizeBytes.set(0);
     }
 
     public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) {
