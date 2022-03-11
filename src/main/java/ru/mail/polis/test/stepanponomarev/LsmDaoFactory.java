@@ -40,6 +40,6 @@ public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Entry
 
     @Override
     public Entry<OSXMemorySegment> fromBaseEntry(Entry<OSXMemorySegment> entry) {
-        return new BaseEntry<>(entry.key(), entry.value());
+        return entry;
     }
 }
