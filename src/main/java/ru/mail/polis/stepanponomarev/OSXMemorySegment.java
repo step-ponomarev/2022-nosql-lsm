@@ -37,6 +37,10 @@ public final class OSXMemorySegment implements Comparable<OSXMemorySegment> {
         return memorySegment;
     }
 
+    public long size() {
+        return memorySegment.byteSize();
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(

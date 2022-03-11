@@ -30,16 +30,18 @@ public final class SSTable {
     public static SSTable createInstance(
             Path path,
             Iterator<Entry<OSXMemorySegment>> data,
-            long size
+            long dataSize,
+            int dataAmount
     ) throws IOException {
         final Path file = path.resolve(FILE_NAME);
         Files.createFile(file);
 
-        final long[] positions = flushAndAndGetPositions(file, data, size);
+        final long fileSize = (long) Long.BYTES * 2 * dataAmount + dataSize;
+        final long[] positions = flushAndAndGetPositions(file, data, fileSize, dataAmount);
         final MemorySegment tableMemorySegment = MemorySegment.mapFile(
                 file,
                 0,
-                size,
+                fileSize,
                 FileChannel.MapMode.READ_ONLY,
                 ResourceScope.newConfinedScope()
         );
@@ -71,20 +73,23 @@ public final class SSTable {
     private static long[] flushAndAndGetPositions(
             Path file,
             Iterator<Entry<OSXMemorySegment>> data,
-            long sizeBytes
+            long fileSize,
+            int dataAmount
     ) throws IOException {
-        final List<Long> positionList = new ArrayList<>();
         MemorySegment memorySegment = MemorySegment.mapFile(
                 file,
                 0,
-                sizeBytes,
+                fileSize,
                 FileChannel.MapMode.READ_WRITE,
                 ResourceScope.newSharedScope()
         );
 
+        int i = 0;
+        final long [] positions = new long[dataAmount];
+
         long currentOffset = 0;
         while (data.hasNext()) {
-            positionList.add(currentOffset);
+            positions[i++] = currentOffset;
 
             final Entry<OSXMemorySegment> entry = data.next();
             final MemorySegment key = entry.key().getMemorySegment();
@@ -108,11 +113,6 @@ public final class SSTable {
 
             memorySegment.asSlice(currentOffset, valueSize).copyFrom(value.getMemorySegment());
             currentOffset += valueSize;
-        }
-
-        final long[] positions = new long[positionList.size()];
-        for (int i = 0; i < positionList.size(); i++) {
-            positions[i] = positionList.get(i);
         }
 
         return positions;
