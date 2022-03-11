@@ -2,7 +2,6 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Entry;
 
-
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Iterator;
