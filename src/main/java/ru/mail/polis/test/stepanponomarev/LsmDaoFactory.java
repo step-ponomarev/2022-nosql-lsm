@@ -4,9 +4,9 @@ import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.LsmDao;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-@DaoFactory(stage = 2)
+@DaoFactory(stage = 3)
 public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, TimestampEntry> {
 
     @Override
