@@ -64,14 +64,15 @@ public final class MemTable {
     }
 
     public MemTable getSnapshotAndClean() {
-        MemTable memTable = new MemTable(store, sizeBytes.get());
+        long sizeBefore = sizeBytes.get();
+        MemTable memTable = new MemTable(store, sizeBefore);
 
         store = new ConcurrentSkipListMap<>();
 
         long size;
         do {
             size = sizeBytes.get();
-        } while (!sizeBytes.compareAndSet(size, 0));
+        } while (!sizeBytes.compareAndSet(size, size - sizeBefore));
 
         return memTable;
     }

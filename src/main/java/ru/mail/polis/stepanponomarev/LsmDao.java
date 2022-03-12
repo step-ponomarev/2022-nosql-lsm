@@ -2,6 +2,8 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
+import ru.mail.polis.stepanponomarev.log.AsyncLogger;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.IOException;
@@ -18,8 +20,8 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     private static final long MAX_MEM_TABLE_SIZE_BYTES = 1_000_000;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
-    private final MemLog logger;
     private final MemTable memTable;
+    private final AsyncLogger logger;
 
     private final Path path;
     private final CopyOnWriteArrayList<SSTable> store;
@@ -30,7 +32,7 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
         }
 
         path = bathPath;
-        logger = new MemLog(path, MAX_MEM_TABLE_SIZE_BYTES);
+        logger = new AsyncLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
         memTable = new MemTable(logger.load());
         store = createStore(path);
     }
@@ -50,7 +52,7 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     @Override
     public void upsert(Entry<OSXMemorySegment> entry) {
         try {
-            logger.log(entry);
+            logger.log(entry, System.currentTimeMillis());
             memTable.put(entry);
 
             if (memTable.sizeBytes() >= MAX_MEM_TABLE_SIZE_BYTES) {
@@ -62,13 +64,15 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     }
 
     @Override
-    public synchronized void flush() throws IOException {
+    public void flush() throws IOException {
+        final long timestamp = System.currentTimeMillis();
+
         final MemTable snapshot = memTable.getSnapshotAndClean();
         final Path dir = path.resolve(SSTABLE_DIR_NAME + store.size());
         Files.createDirectory(dir);
 
         store.add(SSTable.createInstance(dir, snapshot.get(), snapshot.sizeBytes(), snapshot.size()));
-        logger.clean();
+        logger.clear(timestamp);
     }
 
     private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {

@@ -1,4 +1,4 @@
-package ru.mail.polis.stepanponomarev;
+package ru.mail.polis.stepanponomarev.iterator;
 
 import ru.mail.polis.Entry;
 
@@ -7,7 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-final class MergedIterator<T extends Comparable<T>, E extends Entry<T>> implements Iterator<E> {
+public final class MergedIterator<T extends Comparable<T>, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> firstIter;
     private final Iterator<E> secondIter;
 
