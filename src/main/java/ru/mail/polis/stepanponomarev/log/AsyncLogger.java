@@ -54,16 +54,11 @@ public final class AsyncLogger implements Closeable {
 
         executorService.shutdown();
         try {
-            try {
-                if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
-                    throw new IOException("We are waiting too loong.");
-                }
-            } catch (InterruptedException e) {
-                Thread.interrupted();
-                throw e;
+            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
+                throw new IOException("We are waiting too loong.");
             }
         } catch (InterruptedException e) {
-            throw new IOException("Very strange unexpected exception.", e);
+            Thread.currentThread().interrupted();
         }
     }
 
