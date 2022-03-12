@@ -58,6 +58,7 @@ public final class AsyncLogger implements Closeable {
                 throw new IOException("AsyncLogger closing error");
             }
         } catch (InterruptedException e) {
+            Thread.interrupted();
             throw new IOException("AsyncLogger closing error", e);
         }
     }
