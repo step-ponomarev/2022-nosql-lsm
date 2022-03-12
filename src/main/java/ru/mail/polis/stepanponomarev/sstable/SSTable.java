@@ -3,7 +3,7 @@ package ru.mail.polis.stepanponomarev.sstable;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.MappedIterator;
+import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.Utils;
 
