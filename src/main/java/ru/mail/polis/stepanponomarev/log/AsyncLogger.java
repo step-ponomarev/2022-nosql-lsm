@@ -25,7 +25,7 @@ public final class AsyncLogger implements Closeable {
         this.log = new ConcurrentLinkedQueue<>();
 
         executorService = Executors.newSingleThreadExecutor();
-        executorService.submit(() -> {
+        executorService.execute(() -> {
                     while (closed.get() || !log.isEmpty()) {
                         final TimestampEntry timedLog = log.remove();
 
@@ -59,6 +59,10 @@ public final class AsyncLogger implements Closeable {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+
+            if (Thread.interrupted()) {
+                throw new IOException("Very strange unexpected exception", new InterruptedException());
+            }
         }
     }
 
