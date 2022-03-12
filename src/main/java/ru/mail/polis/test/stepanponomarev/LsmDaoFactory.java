@@ -47,6 +47,6 @@ public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Entry
 
     @Override
     public EntryWithTime fromBaseEntry(Entry<OSXMemorySegment> baseEntry) {
-        return new EntryWithTime(baseEntry, System.currentTimeMillis());
+        return new EntryWithTime(baseEntry, System.nanoTime());
     }
 }

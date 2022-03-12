@@ -3,7 +3,6 @@ package ru.mail.polis.stepanponomarev;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -44,7 +43,10 @@ public final class MemTable {
         clearLock = readWriteLock.writeLock();
     }
 
-    // Тут все правильно считает в многопоточной среде
+    public Iterator<EntryWithTime> get() {
+        return get(null, null);
+    }
+
     public EntryWithTime put(EntryWithTime entry) {
         try {
             putLock.lock();
@@ -71,23 +73,15 @@ public final class MemTable {
         }
     }
 
-    public Iterator<EntryWithTime> get() {
-        return get(null, null);
-    }
-
     public MemTable getSnapshotAndClear() {
         try {
             clearLock.lock();
 
-            long sizeBefore = sizeBytes.get();
+            final long sizeBefore = sizeBytes.get();
             final MemTable memTable = new MemTable(store, sizeBefore);
 
             store = new ConcurrentSkipListMap<>();
-
-            long size;
-            do {
-                size = sizeBytes.get();
-            } while (!sizeBytes.compareAndSet(size, size - sizeBefore));
+            sizeBytes.set(0);
 
             return memTable;
         } finally {
@@ -101,6 +95,10 @@ public final class MemTable {
 
     public int size() {
         return store.size();
+    }
+
+    public boolean isEmpty() {
+        return store.isEmpty();
     }
 
     public Iterator<EntryWithTime> get(OSXMemorySegment from, OSXMemorySegment to) {

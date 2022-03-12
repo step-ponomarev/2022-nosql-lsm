@@ -2,30 +2,41 @@ package ru.mail.polis.stepanponomarev.log;
 
 import ru.mail.polis.stepanponomarev.EntryWithTime;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class AsyncLogger {
+public final class AsyncLogger implements Closeable {
     private final CommitLog commitLog;
     private final ConcurrentLinkedQueue<EntryWithTime> log;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final ExecutorService executorService;
 
     public AsyncLogger(Path path, long size) throws IOException {
         this.commitLog = new CommitLog(path, size);
         this.log = new ConcurrentLinkedQueue<>();
 
-        Executors.newSingleThreadExecutor().submit(() -> {
-            final EntryWithTime timedLog = log.remove();
+        executorService = Executors.newSingleThreadExecutor();
+        executorService.submit(() -> {
+                    while (closed.get() || !log.isEmpty()) {
+                        final EntryWithTime timedLog = log.remove();
 
-            try {
-                commitLog.log(timedLog);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+                        try {
+                            commitLog.log(timedLog);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                }
+        );
     }
 
     public void log(EntryWithTime entry) {
@@ -35,6 +46,22 @@ public final class AsyncLogger {
     public void clear(long timestamp) {
         log.removeIf(e -> e.getTimestamp() < timestamp);
         commitLog.clean();
+    }
+
+    @Override
+    public void close() throws IOException {
+        closed.set(true);
+
+        executorService.shutdown();
+        try {
+            
+            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
+                throw new IOException("AsyncLogger closing error");
+            }
+
+        } catch (InterruptedException e) {
+            throw new IOException("AsyncLogger closing error", e);
+        }
     }
 
     public Iterator<EntryWithTime> load() {

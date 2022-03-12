@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
@@ -64,11 +65,21 @@ public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
     }
 
     @Override
+    public void close() throws IOException {
+        logger.close();
+        flush();
+    }
+
+    @Override
     public void flush() throws IOException {
-        final long timestamp = System.currentTimeMillis();
+        final long timestamp = System.nanoTime();
 
         final MemTable snapshot = memTable.getSnapshotAndClear();
-        final Path dir = path.resolve(SSTABLE_DIR_NAME + store.size());
+        if (snapshot.isEmpty()) {
+            return;
+        }
+
+        final Path dir = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(dir);
 
         store.add(SSTable.createInstance(dir, snapshot.get(), snapshot.sizeBytes(), snapshot.size()));
@@ -77,14 +88,15 @@ public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
 
     private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {
         try (Stream<Path> files = Files.list(path)) {
-            final long ssTableCount = files
+            final List<String> sstableNames = files
                     .map(f -> f.getFileName().toString())
                     .filter(n -> n.contains(SSTABLE_DIR_NAME))
-                    .count();
+                    .sorted()
+                    .toList();
 
             final CopyOnWriteArrayList<SSTable> tables = new CopyOnWriteArrayList<>();
-            for (long i = 0; i < ssTableCount; i++) {
-                tables.add(SSTable.upInstance(path.resolve(SSTABLE_DIR_NAME + i)));
+            for (String name : sstableNames) {
+                tables.add(SSTable.upInstance(path.resolve(name)));
             }
 
             return tables;

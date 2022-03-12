@@ -3,8 +3,8 @@ package ru.mail.polis.stepanponomarev;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
-public class EntryWithTime implements Entry<OSXMemorySegment> {
-    private Entry<OSXMemorySegment> entry;
+public final class EntryWithTime implements Entry<OSXMemorySegment> {
+    private final Entry<OSXMemorySegment> entry;
     private final long timestamp;
 
     public EntryWithTime(Entry<OSXMemorySegment> entry, long timestamp) {
