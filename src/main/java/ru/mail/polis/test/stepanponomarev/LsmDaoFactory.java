@@ -4,7 +4,7 @@ import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.EntryWithTime;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.LsmDao;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.test.DaoFactory;
@@ -15,10 +15,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @DaoFactory(stage = 2)
-public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, EntryWithTime> {
+public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, TimestampEntry> {
 
     @Override
-    public Dao<OSXMemorySegment, EntryWithTime> createDao(Config config) throws IOException {
+    public Dao<OSXMemorySegment, TimestampEntry> createDao(Config config) throws IOException {
         final Path path = config.basePath();
         if (Files.notExists(path)) {
             Files.createDirectory(path);
@@ -46,7 +46,7 @@ public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Entry
     }
 
     @Override
-    public EntryWithTime fromBaseEntry(Entry<OSXMemorySegment> baseEntry) {
-        return new EntryWithTime(baseEntry, System.nanoTime());
+    public TimestampEntry fromBaseEntry(Entry<OSXMemorySegment> baseEntry) {
+        return new TimestampEntry(baseEntry, System.nanoTime());
     }
 }

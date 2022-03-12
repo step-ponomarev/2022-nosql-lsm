@@ -3,16 +3,16 @@ package ru.mail.polis.stepanponomarev;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
-public final class EntryWithTime implements Entry<OSXMemorySegment> {
+public final class TimestampEntry implements Entry<OSXMemorySegment> {
     private final Entry<OSXMemorySegment> entry;
     private final long timestamp;
 
-    public EntryWithTime(Entry<OSXMemorySegment> entry, long timestamp) {
+    public TimestampEntry(Entry<OSXMemorySegment> entry, long timestamp) {
         this.entry = entry;
         this.timestamp = timestamp;
     }
 
-    public EntryWithTime(OSXMemorySegment key, OSXMemorySegment value, long timestamp) {
+    public TimestampEntry(OSXMemorySegment key, OSXMemorySegment value, long timestamp) {
         this.entry = new BaseEntry<>(key, value);
         this.timestamp = timestamp;
     }

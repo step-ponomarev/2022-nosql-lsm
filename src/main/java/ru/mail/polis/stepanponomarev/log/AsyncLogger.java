@@ -1,6 +1,6 @@
 package ru.mail.polis.stepanponomarev.log;
 
-import ru.mail.polis.stepanponomarev.EntryWithTime;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class AsyncLogger implements Closeable {
     private final CommitLog commitLog;
-    private final ConcurrentLinkedQueue<EntryWithTime> log;
+    private final ConcurrentLinkedQueue<TimestampEntry> log;
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ExecutorService executorService;
@@ -27,7 +27,7 @@ public final class AsyncLogger implements Closeable {
         executorService = Executors.newSingleThreadExecutor();
         executorService.submit(() -> {
                     while (closed.get() || !log.isEmpty()) {
-                        final EntryWithTime timedLog = log.remove();
+                        final TimestampEntry timedLog = log.remove();
 
                         try {
                             commitLog.log(timedLog);
@@ -39,11 +39,11 @@ public final class AsyncLogger implements Closeable {
         );
     }
 
-    public void log(EntryWithTime entry) {
+    public void log(TimestampEntry entry) {
         log.add(entry);
     }
 
-    public void clear(long timestamp) {
+    public void clear(long timestamp) throws IOException {
         log.removeIf(e -> e.getTimestamp() < timestamp);
         commitLog.clean();
     }
@@ -54,17 +54,15 @@ public final class AsyncLogger implements Closeable {
 
         executorService.shutdown();
         try {
-
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IOException("AsyncLogger closing error");
             }
-
         } catch (InterruptedException e) {
             throw new IOException("AsyncLogger closing error", e);
         }
     }
 
-    public Iterator<EntryWithTime> load() {
+    public Iterator<TimestampEntry> load() {
         return commitLog.load();
     }
 }

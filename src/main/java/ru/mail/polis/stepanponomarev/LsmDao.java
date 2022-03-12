@@ -3,6 +3,8 @@ package ru.mail.polis.stepanponomarev;
 import ru.mail.polis.Dao;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.log.AsyncLogger;
+import ru.mail.polis.stepanponomarev.memtable.MemTable;
+import ru.mail.polis.stepanponomarev.memtable.MemTableProxy;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.IOException;
@@ -12,19 +14,23 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
-public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
-    private static final long MAX_MEM_TABLE_SIZE_BYTES = 1_000_000;
+public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
+    private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
-    private final MemTable memTable;
+    private final Path path;
     private final AsyncLogger logger;
 
-    private final Path path;
-    private final CopyOnWriteArrayList<SSTable> store;
+    private final AtomicLong currentSize = new AtomicLong();
+    private final CopyOnWriteArrayList<SSTable> ssTables;
+
+    private volatile MemTableProxy memTableProxy;
 
     public LsmDao(Path bathPath) throws IOException {
         if (Files.notExists(bathPath)) {
@@ -33,32 +39,55 @@ public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
 
         path = bathPath;
         logger = new AsyncLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
-        memTable = new MemTable(logger.load());
-        store = createStore(path);
+        memTableProxy = new MemTableProxy(
+                createMemTable(logger.load())
+        );
+        ssTables = createStore(path);
     }
 
+    private MemTable createMemTable(Iterator<TimestampEntry> load) {
+        final SortedMap<OSXMemorySegment, TimestampEntry> store = new ConcurrentSkipListMap<>();
+        while (load.hasNext()) {
+            final TimestampEntry entry = load.next();
+            store.put(entry.key(), entry);
+        }
+
+        return new MemTable(store);
+    }
 
     @Override
-    public Iterator<EntryWithTime> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
-        final List<Iterator<EntryWithTime>> iterators = new ArrayList<>();
-        for (SSTable table : store) {
+    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
+        final List<Iterator<TimestampEntry>> iterators = new ArrayList<>();
+        for (SSTable table : ssTables) {
             iterators.add(table.get(from, to));
         }
 
-        iterators.add(memTable.get(from, to));
+        MemTableProxy.FlushData flushData = memTableProxy.getFlushData();
+        if (flushData != null) {
+            iterators.add(flushData.data);
+        }
+
+        iterators.add(memTableProxy.get(from, to));
 
         return MergedIterator.instanceOf(iterators);
     }
 
     @Override
-    public void upsert(EntryWithTime entry) {
+    public void upsert(TimestampEntry entry) {
         try {
             logger.log(entry);
-            memTable.put(entry);
 
-            if (memTable.sizeBytes() >= MAX_MEM_TABLE_SIZE_BYTES) {
+            final long sizeBefore = currentSize.get();
+            if (currentSize.get() >= MAX_MEM_TABLE_SIZE_BYTES) {
                 flush();
+
+                long size;
+                do {
+                    size = currentSize.get();
+                } while (!currentSize.compareAndSet(size, size - sizeBefore));
             }
+
+            memTableProxy.put(entry);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -74,15 +103,15 @@ public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
     public void flush() throws IOException {
         final long timestamp = System.nanoTime();
 
-        final MemTable snapshot = memTable.getSnapshotAndClear();
-        if (snapshot.isEmpty()) {
-            return;
-        }
+        memTableProxy = MemTableProxy.createPreparedToFlush(memTableProxy);
+        MemTableProxy.FlushData flushData = memTableProxy.getFlushData();
 
         final Path dir = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(dir);
 
-        store.add(SSTable.createInstance(dir, snapshot.get(), snapshot.sizeBytes(), snapshot.size()));
+        ssTables.add(SSTable.createInstance(dir, flushData.data, flushData.sizeBytes, flushData.count));
+
+        memTableProxy = MemTableProxy.createFlushNullable(memTableProxy);
         logger.clear(timestamp);
     }
 

@@ -3,9 +3,7 @@ package ru.mail.polis.stepanponomarev.log;
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.EntryWithTime;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
 
@@ -22,10 +20,13 @@ public class CommitLog {
     private static final double SIZE_BUFFER_FACTOR = 1.5;
 
     private final Path commitLogFile;
+    private final long initSize;
 
     private MemorySegment logMemorySegment;
 
     public CommitLog(Path path, long size) throws IOException {
+        initSize = size;
+
         commitLogFile = path.resolve(FILE_NAME);
         final boolean newFile = Files.notExists(commitLogFile);
         if (newFile) {
@@ -38,7 +39,7 @@ public class CommitLog {
         }
     }
 
-    public synchronized Iterator<EntryWithTime> load() {
+    public synchronized Iterator<TimestampEntry> load() {
         final long offset = MemoryAccess.getLong(logMemorySegment);
 
         if (offset == START_OFFSET) {
@@ -48,7 +49,7 @@ public class CommitLog {
         return new MappedIterator(logMemorySegment.asSlice(START_OFFSET, offset));
     }
 
-    public synchronized void log(EntryWithTime entry) throws IOException {
+    public synchronized void log(TimestampEntry entry) throws IOException {
         final long offset = MemoryAccess.getLong(logMemorySegment);
         if (offset >= logMemorySegment.byteSize() / 1.2) {
             logMemorySegment = createSegment((long) (offset * SIZE_BUFFER_FACTOR));
@@ -57,8 +58,9 @@ public class CommitLog {
         MemoryAccess.setLong(logMemorySegment, Utils.flush(entry, logMemorySegment, offset));
     }
 
-    public synchronized void clean() {
+    public synchronized void clean() throws IOException {
         MemoryAccess.setLong(logMemorySegment, START_OFFSET);
+        logMemorySegment = createSegment((long) (initSize * SIZE_BUFFER_FACTOR));
     }
 
     private MemorySegment createSegment(long size) throws IOException {

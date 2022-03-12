@@ -2,13 +2,13 @@ package ru.mail.polis.stepanponomarev.iterator;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.EntryWithTime;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.Utils;
 
 import java.util.Iterator;
 
-public final class MappedIterator implements Iterator<EntryWithTime> {
+public final class MappedIterator implements Iterator<TimestampEntry> {
     private final MemorySegment memorySegment;
     private long position;
 
@@ -23,7 +23,7 @@ public final class MappedIterator implements Iterator<EntryWithTime> {
     }
 
     @Override
-    public EntryWithTime next() {
+    public TimestampEntry next() {
         final long keySize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
@@ -37,12 +37,12 @@ public final class MappedIterator implements Iterator<EntryWithTime> {
         position += Long.BYTES;
 
         if (valueSize == Utils.TOMBSTONE_TAG) {
-            return new EntryWithTime(new OSXMemorySegment(key), null, timestamp);
+            return new TimestampEntry(new OSXMemorySegment(key), null, timestamp);
         }
 
         MemorySegment value = memorySegment.asSlice(position, valueSize);
         position += valueSize;
 
-        return new EntryWithTime(new OSXMemorySegment(key), new OSXMemorySegment(value), timestamp);
+        return new TimestampEntry(new OSXMemorySegment(key), new OSXMemorySegment(value), timestamp);
     }
 }

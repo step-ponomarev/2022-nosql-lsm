@@ -9,7 +9,7 @@ public final class Utils {
     private Utils() {
     }
 
-    public static long sizeOf(EntryWithTime entry) {
+    public static long sizeOf(TimestampEntry entry) {
         final OSXMemorySegment key = entry.key();
         final OSXMemorySegment value = entry.value();
 
@@ -17,7 +17,7 @@ public final class Utils {
         return key.size() + (value == null ? 0 : value.size()) + Long.BYTES;
     }
 
-    public static long flush(EntryWithTime entry, MemorySegment memorySegment, long offset) {
+    public static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
         long writeOffset = offset;
         final MemorySegment key = entry.key().getMemorySegment();
         final long keySize = key.byteSize();
