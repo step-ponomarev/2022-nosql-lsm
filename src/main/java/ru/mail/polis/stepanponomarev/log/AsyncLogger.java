@@ -55,7 +55,7 @@ public final class AsyncLogger implements Closeable {
         executorService.shutdown();
         try {
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
-                throw new IOException("We are waiting too loong.");
+                throw new IOException("We are waiting too long.");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -66,7 +66,7 @@ final class Index {
                 ResourceScope.newSharedScope()
         );
 
-        long offset = 0;
+        long offset = 0_0;
         for (long pos : positions) {
             MemoryAccess.setLongAtOffset(memorySegment, offset, pos);
             offset += Long.BYTES;
