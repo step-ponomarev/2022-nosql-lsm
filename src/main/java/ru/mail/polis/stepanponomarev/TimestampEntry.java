@@ -30,12 +30,4 @@ public final class TimestampEntry implements Entry<OSXMemorySegment> {
     public OSXMemorySegment value() {
         return entry.value();
     }
-
-    @Override
-    public String toString() {
-        return "EntryWithTime{" +
-                "entry=" + entry +
-                ", timestamp=" + timestamp +
-                '}';
-    }
 }

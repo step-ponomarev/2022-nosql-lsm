@@ -13,7 +13,6 @@ public final class Utils {
         final OSXMemorySegment key = entry.key();
         final OSXMemorySegment value = entry.value();
 
-
         return key.size() + (value == null ? 0 : value.size()) + Long.BYTES;
     }
 
