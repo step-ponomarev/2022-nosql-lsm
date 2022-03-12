@@ -49,12 +49,12 @@ public final class AsyncLogger implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         closed.set(true);
 
         executorService.shutdown();
         try {
-            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.interrupted();
         }
