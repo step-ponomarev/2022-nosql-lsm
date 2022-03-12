@@ -42,10 +42,10 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         ssTables = createStore(path);
     }
 
-    private MemTable createMemTable(Iterator<TimestampEntry> load) {
+    private MemTable createMemTable(Iterator<TimestampEntry> data) {
         final SortedMap<OSXMemorySegment, TimestampEntry> store = new ConcurrentSkipListMap<>();
-        while (load.hasNext()) {
-            final TimestampEntry entry = load.next();
+        while (data.hasNext()) {
+            final TimestampEntry entry = data.next();
             store.put(entry.key(), entry);
         }
 
