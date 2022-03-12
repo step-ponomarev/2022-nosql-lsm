@@ -51,8 +51,10 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
 
     @Override
     public void upsert(Entry<OSXMemorySegment> entry) {
+        final long timestamp = System.currentTimeMillis();
+
         try {
-            logger.log(entry, System.currentTimeMillis());
+            logger.log(entry, timestamp);
             memTable.put(entry);
 
             if (memTable.sizeBytes() >= MAX_MEM_TABLE_SIZE_BYTES) {
