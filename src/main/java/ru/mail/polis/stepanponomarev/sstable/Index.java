@@ -71,8 +71,6 @@ final class Index {
             MemoryAccess.setLongAtOffset(memorySegment, offset, pos);
             offset += Long.BYTES;
         }
-
-        memorySegment.force();
     }
 
     public long getKeyPosition(OSXMemorySegment key) {
@@ -80,51 +78,48 @@ final class Index {
             return -1;
         }
 
-        long left = 0;
-        long right = indexMemorySegment.byteSize() / Long.BYTES - 1;
-
-        final long minKeyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, left);
-        long size = MemoryAccess.getLongAtOffset(tableMemorySegment, minKeyPosition);
-        final OSXMemorySegment minKey = new OSXMemorySegment(
-                tableMemorySegment.asSlice(minKeyPosition + Long.BYTES, size)
-        );
-
+        final long firstIndexOrderPosition = 0;
+        final OSXMemorySegment minKey = getKeyByIndexOrderPosition(firstIndexOrderPosition);
         if (key.compareTo(minKey) < 0) {
             return -1;
         }
 
-        final long maxKeyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, right);
-        size = MemoryAccess.getLongAtOffset(tableMemorySegment, maxKeyPosition);
-        final OSXMemorySegment maxKey = new OSXMemorySegment(
-                tableMemorySegment.asSlice(maxKeyPosition + Long.BYTES, size)
-        );
-
+        final long lastIndexOrderPosition = indexMemorySegment.byteSize() / Long.BYTES - 1;
+        final OSXMemorySegment maxKey = getKeyByIndexOrderPosition(lastIndexOrderPosition);
         if (key.compareTo(maxKey) > 0) {
             return -1;
         }
 
-        while (right >= left) {
-            final long mid = left + (right - left) / 2;
+        return getKeyPosition(key, firstIndexOrderPosition, lastIndexOrderPosition);
+    }
 
-            final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
-            final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
-
-            final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
-            final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
-
-            if (compareResult == 0) {
-                return keyPosition;
-            }
-
-            if (compareResult < 0) {
-                right = mid - 1;
-            }
-
-            if (compareResult > 0) {
-                left = mid + 1;
-            }
+    private long getKeyPosition(OSXMemorySegment key, long left, long right) {
+        if (left > right) {
+            return -1;
         }
 
-        return -1;
+        final long mid = left + (right - left) / 2;
+        final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
+        final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
+
+        final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
+        final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
+
+        if (compareResult == 0) {
+            return keyPosition;
+        }
+
+        if (compareResult < 0) {
+            return getKeyPosition(key, left, mid - 1);
+        }
+
+        return getKeyPosition(key, mid + 1, right);
+    }
+
+    private OSXMemorySegment getKeyByIndexOrderPosition(long index) {
+        final long minKeyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, index);
+        long size = MemoryAccess.getLongAtOffset(tableMemorySegment, minKeyPosition);
+
+        return new OSXMemorySegment(tableMemorySegment.asSlice(minKeyPosition + Long.BYTES, size));
     }
 }

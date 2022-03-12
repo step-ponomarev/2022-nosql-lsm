@@ -32,12 +32,12 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     private volatile MemTableProxy memTableProxy;
 
-    public LsmDao(Path bathPath) throws IOException {
-        if (Files.notExists(bathPath)) {
-            throw new IllegalArgumentException("Path: " + bathPath + "is not exist");
+    public LsmDao(Path basePath) throws IOException {
+        if (Files.notExists(basePath)) {
+            throw new IllegalArgumentException("Path: " + basePath + "is not exist");
         }
 
-        path = bathPath;
+        path = basePath;
         logger = new AsyncLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
         memTableProxy = new MemTableProxy(
                 createMemTable(logger.load())
@@ -100,9 +100,9 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     }
 
     @Override
+    //TODO: Корявый флаш, можно перезатереть предыдущий
     public void flush() throws IOException {
         final long timestamp = System.nanoTime();
-
         memTableProxy = MemTableProxy.createPreparedToFlush(memTableProxy);
         MemTableProxy.FlushData flushData = memTableProxy.getFlushData();
 

@@ -7,6 +7,7 @@ import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 public final class MappedIterator implements Iterator<TimestampEntry> {
     private final MemorySegment memorySegment;
@@ -24,6 +25,10 @@ public final class MappedIterator implements Iterator<TimestampEntry> {
 
     @Override
     public TimestampEntry next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
+
         final long keySize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
