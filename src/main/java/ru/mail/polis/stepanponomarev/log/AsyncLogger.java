@@ -61,7 +61,7 @@ public final class AsyncLogger implements Closeable {
             Thread.currentThread().interrupt();
 
             if (Thread.interrupted()) {
-                throw new IOException("Very strange unexpected exception", new InterruptedException());
+                throw new IOException("Very strange unexpected exception", new InterruptedException(e.getMessage()));
             }
         }
     }
