@@ -59,7 +59,7 @@ public final class AsyncLogger implements Closeable {
             }
         } catch (InterruptedException e) {
             Thread.interrupted();
-            throw new IllegalStateException("Very strange unexpected situation", e);
+            throw new IllegalStateException("Very strange unexpected situation.", e);
         }
     }
 
