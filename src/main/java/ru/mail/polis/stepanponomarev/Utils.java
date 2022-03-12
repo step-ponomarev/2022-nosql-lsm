@@ -2,7 +2,6 @@ package ru.mail.polis.stepanponomarev;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.Entry;
 
 public final class Utils {
     public static final int TOMBSTONE_TAG = -1;
@@ -10,14 +9,15 @@ public final class Utils {
     private Utils() {
     }
 
-    public static long sizeOf(Entry<OSXMemorySegment> entry) {
+    public static long sizeOf(EntryWithTime entry) {
         final OSXMemorySegment key = entry.key();
         final OSXMemorySegment value = entry.value();
 
-        return key.size() + (value == null ? 0 : value.size());
+
+        return key.size() + (value == null ? 0 : value.size()) + Long.BYTES;
     }
 
-    public static long flush(Entry<OSXMemorySegment> entry, MemorySegment memorySegment, long offset) {
+    public static long flush(EntryWithTime entry, MemorySegment memorySegment, long offset) {
         long writeOffset = offset;
         final MemorySegment key = entry.key().getMemorySegment();
         final long keySize = key.byteSize();
@@ -26,6 +26,9 @@ public final class Utils {
 
         memorySegment.asSlice(writeOffset, keySize).copyFrom(key);
         writeOffset += keySize;
+
+        MemoryAccess.setLongAtOffset(memorySegment, writeOffset, entry.getTimestamp());
+        writeOffset += Long.BYTES;
 
         final OSXMemorySegment value = entry.value();
         if (value == null) {

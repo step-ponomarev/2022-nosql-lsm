@@ -1,7 +1,6 @@
 package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Dao;
-import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.log.AsyncLogger;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
@@ -16,7 +15,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
-public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
+public class LsmDao implements Dao<OSXMemorySegment, EntryWithTime> {
     private static final long MAX_MEM_TABLE_SIZE_BYTES = 1_000_000;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
@@ -28,7 +27,7 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
 
     public LsmDao(Path bathPath) throws IOException {
         if (Files.notExists(bathPath)) {
-            Files.createDirectory(bathPath);
+            throw new IllegalArgumentException("Path: " + bathPath + "is not exist");
         }
 
         path = bathPath;
@@ -37,9 +36,10 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
         store = createStore(path);
     }
 
+
     @Override
-    public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
-        final List<Iterator<Entry<OSXMemorySegment>>> iterators = new ArrayList<>();
+    public Iterator<EntryWithTime> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
+        final List<Iterator<EntryWithTime>> iterators = new ArrayList<>();
         for (SSTable table : store) {
             iterators.add(table.get(from, to));
         }
@@ -50,11 +50,9 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     }
 
     @Override
-    public void upsert(Entry<OSXMemorySegment> entry) {
-        final long timestamp = System.currentTimeMillis();
-
+    public void upsert(EntryWithTime entry) {
         try {
-            logger.log(entry, timestamp);
+            logger.log(entry);
             memTable.put(entry);
 
             if (memTable.sizeBytes() >= MAX_MEM_TABLE_SIZE_BYTES) {
@@ -69,7 +67,7 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     public void flush() throws IOException {
         final long timestamp = System.currentTimeMillis();
 
-        final MemTable snapshot = memTable.getSnapshotAndClean();
+        final MemTable snapshot = memTable.getSnapshotAndClear();
         final Path dir = path.resolve(SSTABLE_DIR_NAME + store.size());
         Files.createDirectory(dir);
 

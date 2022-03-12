@@ -2,14 +2,13 @@ package ru.mail.polis.stepanponomarev.iterator;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.BaseEntry;
-import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.EntryWithTime;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.Utils;
 
 import java.util.Iterator;
 
-public final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
+public final class MappedIterator implements Iterator<EntryWithTime> {
     private final MemorySegment memorySegment;
     private long position;
 
@@ -24,26 +23,26 @@ public final class MappedIterator implements Iterator<Entry<OSXMemorySegment>> {
     }
 
     @Override
-    public Entry<OSXMemorySegment> next() {
+    public EntryWithTime next() {
         final long keySize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
         final MemorySegment key = memorySegment.asSlice(position, keySize);
         position += keySize;
 
+        final long timestamp = MemoryAccess.getLongAtOffset(memorySegment, position);
+        position += Long.BYTES;
+
         final long valueSize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
         if (valueSize == Utils.TOMBSTONE_TAG) {
-            return new BaseEntry<>(new OSXMemorySegment(key), null);
+            return new EntryWithTime(new OSXMemorySegment(key), null, timestamp);
         }
 
         MemorySegment value = memorySegment.asSlice(position, valueSize);
         position += valueSize;
 
-        return new BaseEntry<>(
-                new OSXMemorySegment(key),
-                new OSXMemorySegment(value)
-        );
+        return new EntryWithTime(new OSXMemorySegment(key), new OSXMemorySegment(value), timestamp);
     }
 }

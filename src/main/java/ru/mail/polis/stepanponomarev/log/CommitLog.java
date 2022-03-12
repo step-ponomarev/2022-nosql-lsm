@@ -4,6 +4,7 @@ import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.EntryWithTime;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
@@ -37,7 +38,7 @@ public class CommitLog {
         }
     }
 
-    public synchronized Iterator<Entry<OSXMemorySegment>> load() {
+    public synchronized Iterator<EntryWithTime> load() {
         final long offset = MemoryAccess.getLong(logMemorySegment);
 
         if (offset == START_OFFSET) {
@@ -47,7 +48,7 @@ public class CommitLog {
         return new MappedIterator(logMemorySegment.asSlice(START_OFFSET, offset));
     }
 
-    public synchronized void log(Entry<OSXMemorySegment> entry) throws IOException {
+    public synchronized void log(EntryWithTime entry) throws IOException {
         final long offset = MemoryAccess.getLong(logMemorySegment);
         if (offset >= logMemorySegment.byteSize() / 1.2) {
             logMemorySegment = createSegment((long) (offset * SIZE_BUFFER_FACTOR));

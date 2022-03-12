@@ -1,58 +1,98 @@
 package ru.mail.polis.stepanponomarev;
 
-import ru.mail.polis.Entry;
-
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public final class MemTable {
     private final AtomicLong sizeBytes;
-    private SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> store;
+    private SortedMap<OSXMemorySegment, EntryWithTime> store;
 
-    public MemTable(Iterator<Entry<OSXMemorySegment>> initData) {
+    private final Lock putLock;
+    private final Lock clearLock;
+
+    public MemTable(Iterator<EntryWithTime> initData) {
         store = new ConcurrentSkipListMap<>();
         sizeBytes = new AtomicLong(0);
 
         long size = 0;
         while (initData.hasNext()) {
-            final Entry<OSXMemorySegment> entry = initData.next();
+            final EntryWithTime entry = initData.next();
             store.put(entry.key(), entry);
 
             size += Utils.sizeOf(entry);
         }
 
         sizeBytes.set(size);
+
+        final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+        putLock = readWriteLock.readLock();
+        clearLock = readWriteLock.writeLock();
     }
 
-    private MemTable(SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> store, long sizeBytes) {
+    private MemTable(SortedMap<OSXMemorySegment, EntryWithTime> store, long sizeBytes) {
         this.sizeBytes = new AtomicLong(sizeBytes);
         this.store = store;
+
+        final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+        putLock = readWriteLock.readLock();
+        clearLock = readWriteLock.writeLock();
     }
 
-    public Entry<OSXMemorySegment> put(Entry<OSXMemorySegment> entry) {
-        final OSXMemorySegment key = entry.key();
+    // Тут все правильно считает в многопоточной среде
+    public EntryWithTime put(EntryWithTime entry) {
+        try {
+            putLock.lock();
 
-        final boolean empty = store.isEmpty();
-        Entry<OSXMemorySegment> oldElement = store.get(key);
-        if (empty != store.isEmpty()) {
-            oldElement = null;
+            final OSXMemorySegment key = entry.key();
+            final EntryWithTime oldElement = store.get(key);
+
+            final EntryWithTime addedEntry = store.put(key, entry);
+            final long oldValueSizeBytes = (oldElement == null ? 0
+                    : oldElement.getTimestamp() <= entry.getTimestamp()
+                    ? oldElement.value().size()
+                    : 0
+            );
+
+            final long addedByteSize = Utils.sizeOf(entry) - oldValueSizeBytes;
+            long size;
+            do {
+                size = sizeBytes.get();
+            } while (!sizeBytes.compareAndSet(size, addedByteSize + size));
+
+            return addedEntry;
+        } finally {
+            putLock.unlock();
         }
-
-        final Entry<OSXMemorySegment> addedEntry = store.put(key, entry);
-        final long addedByteSize = Utils.sizeOf(entry) - (oldElement == null ? 0 : oldElement.value().size());
-
-        long size;
-        do {
-            size = sizeBytes.get();
-        } while (!sizeBytes.compareAndSet(size, addedByteSize + size));
-
-        return addedEntry;
     }
 
-    public Iterator<Entry<OSXMemorySegment>> get() {
+    public Iterator<EntryWithTime> get() {
         return get(null, null);
+    }
+
+    public MemTable getSnapshotAndClear() {
+        try {
+            clearLock.lock();
+
+            long sizeBefore = sizeBytes.get();
+            final MemTable memTable = new MemTable(store, sizeBefore);
+
+            store = new ConcurrentSkipListMap<>();
+
+            long size;
+            do {
+                size = sizeBytes.get();
+            } while (!sizeBytes.compareAndSet(size, size - sizeBefore));
+
+            return memTable;
+        } finally {
+            clearLock.unlock();
+        }
     }
 
     public long sizeBytes() {
@@ -63,21 +103,7 @@ public final class MemTable {
         return store.size();
     }
 
-    public MemTable getSnapshotAndClean() {
-        long sizeBefore = sizeBytes.get();
-        MemTable memTable = new MemTable(store, sizeBefore);
-
-        store = new ConcurrentSkipListMap<>();
-
-        long size;
-        do {
-            size = sizeBytes.get();
-        } while (!sizeBytes.compareAndSet(size, size - sizeBefore));
-
-        return memTable;
-    }
-
-    public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) {
+    public Iterator<EntryWithTime> get(OSXMemorySegment from, OSXMemorySegment to) {
         if (from == null && to == null) {
             return store.values().iterator();
         }

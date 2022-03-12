@@ -4,19 +4,27 @@ import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.EntryWithTime;
 import ru.mail.polis.stepanponomarev.LsmDao;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @DaoFactory(stage = 2)
-public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Entry<OSXMemorySegment>> {
+public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, EntryWithTime> {
 
     @Override
-    public Dao<OSXMemorySegment, Entry<OSXMemorySegment>> createDao(Config config) throws IOException {
-        return new LsmDao(config.basePath());
+    public Dao<OSXMemorySegment, EntryWithTime> createDao(Config config) throws IOException {
+        final Path path = config.basePath();
+        if (Files.notExists(path)) {
+            Files.createDirectory(path);
+        }
+
+        return new LsmDao(path);
     }
 
     @Override
@@ -38,7 +46,7 @@ public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Entry
     }
 
     @Override
-    public Entry<OSXMemorySegment> fromBaseEntry(Entry<OSXMemorySegment> entry) {
-        return entry;
+    public EntryWithTime fromBaseEntry(Entry<OSXMemorySegment> baseEntry) {
+        return new EntryWithTime(baseEntry, System.currentTimeMillis());
     }
 }

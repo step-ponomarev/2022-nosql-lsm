@@ -3,6 +3,7 @@ package ru.mail.polis.stepanponomarev.sstable;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.Entry;
+import ru.mail.polis.stepanponomarev.EntryWithTime;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
@@ -27,7 +28,7 @@ public final class SSTable {
 
     public static SSTable createInstance(
             Path path,
-            Iterator<Entry<OSXMemorySegment>> data,
+            Iterator<EntryWithTime> data,
             long dataSize,
             int dataAmount
     ) throws IOException {
@@ -70,7 +71,7 @@ public final class SSTable {
 
     private static long[] flushAndAndGetPositions(
             Path file,
-            Iterator<Entry<OSXMemorySegment>> data,
+            Iterator<EntryWithTime> data,
             long fileSize,
             int dataAmount
     ) throws IOException {
@@ -89,14 +90,14 @@ public final class SSTable {
         while (data.hasNext()) {
             positions[i++] = currentOffset;
 
-            final Entry<OSXMemorySegment> entry = data.next();
+            final EntryWithTime entry = data.next();
             currentOffset = Utils.flush(entry, memorySegment, currentOffset);
         }
 
         return positions;
     }
 
-    public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
+    public Iterator<EntryWithTime> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
         final long size = tableMemorySegment.byteSize();
         if (size == 0) {
             return Collections.emptyIterator();
