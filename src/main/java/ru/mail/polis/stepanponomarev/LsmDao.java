@@ -4,7 +4,6 @@ import ru.mail.polis.Dao;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.log.AsyncLogger;
 import ru.mail.polis.stepanponomarev.memtable.MemTable;
-import ru.mail.polis.stepanponomarev.memtable.MemTableProxy;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.IOException;
@@ -30,7 +29,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     private final AtomicLong currentSize = new AtomicLong();
     private final CopyOnWriteArrayList<SSTable> ssTables;
 
-    private volatile MemTableProxy memTableProxy;
+    private volatile MemTable memTable;
 
     public LsmDao(Path basePath) throws IOException {
         if (Files.notExists(basePath)) {
@@ -39,9 +38,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
         path = basePath;
         logger = new AsyncLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
-        memTableProxy = new MemTableProxy(
-                createMemTable(logger.load())
-        );
+        memTable = createMemTable(logger.load());
         ssTables = createStore(path);
     }
 
@@ -62,12 +59,12 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
             iterators.add(table.get(from, to));
         }
 
-        MemTableProxy.FlushData flushData = memTableProxy.getFlushData();
+        final MemTable.FlushData flushData = memTable.getFlushData();
         if (flushData != null) {
             iterators.add(flushData.data);
         }
 
-        iterators.add(memTableProxy.get(from, to));
+        iterators.add(memTable.get(from, to));
 
         return MergedIterator.instanceOf(iterators);
     }
@@ -87,7 +84,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
                 } while (!currentSize.compareAndSet(size, size - sizeBefore));
             }
 
-            memTableProxy.put(entry);
+            memTable.put(entry);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -103,15 +100,15 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     //TODO: Корявый флаш, можно перезатереть предыдущий
     public void flush() throws IOException {
         final long timestamp = System.nanoTime();
-        memTableProxy = MemTableProxy.createPreparedToFlush(memTableProxy);
-        MemTableProxy.FlushData flushData = memTableProxy.getFlushData();
+        memTable = MemTable.createPreparedToFlush(memTable);
+        MemTable.FlushData flushData = memTable.getFlushData();
 
         final Path dir = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(dir);
 
         ssTables.add(SSTable.createInstance(dir, flushData.data, flushData.sizeBytes, flushData.count));
 
-        memTableProxy = MemTableProxy.createFlushNullable(memTableProxy);
+        memTable = MemTable.createFlushNullable(memTable);
         logger.clear(timestamp);
     }
 

@@ -17,9 +17,10 @@ public final class Utils {
     }
 
     public static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
-        long writeOffset = offset;
         final MemorySegment key = entry.key().getMemorySegment();
         final long keySize = key.byteSize();
+
+        long writeOffset = offset;
         MemoryAccess.setLongAtOffset(memorySegment, writeOffset, keySize);
         writeOffset += Long.BYTES;
 
