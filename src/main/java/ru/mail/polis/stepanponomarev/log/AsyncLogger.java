@@ -58,7 +58,7 @@ public final class AsyncLogger implements Closeable {
                 throw new IOException("We are waiting too loong.");
             }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupted();
+            Thread.currentThread().interrupt();
         }
     }
 
