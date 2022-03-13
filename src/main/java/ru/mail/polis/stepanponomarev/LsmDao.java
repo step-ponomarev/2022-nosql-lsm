@@ -59,14 +59,14 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {
         try (Stream<Path> files = Files.list(path)) {
-            final List<String> sstableNames = files
+            final List<String> tableDirNames = files
                     .map(f -> f.getFileName().toString())
                     .filter(n -> n.contains(SSTABLE_DIR_NAME))
                     .sorted()
                     .toList();
 
             final CopyOnWriteArrayList<SSTable> tables = new CopyOnWriteArrayList<>();
-            for (String name : sstableNames) {
+            for (String name : tableDirNames) {
                 tables.add(SSTable.upInstance(path.resolve(name)));
             }
 
