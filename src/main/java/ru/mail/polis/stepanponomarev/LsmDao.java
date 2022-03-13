@@ -31,6 +31,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     private final AtomicLong currentSize = new AtomicLong();
     private final CopyOnWriteArrayList<SSTable> ssTables;
+    private final CopyOnWriteArrayList<MemTable.FlushData> flushSnapshots;
 
     private volatile MemTable memTable;
 
@@ -43,6 +44,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         loggerAhead = new LoggerAhead(path, MAX_MEM_TABLE_SIZE_BYTES);
         memTable = createMemTable(loggerAhead.load());
         ssTables = createStore(path);
+        flushSnapshots = new CopyOnWriteArrayList<>();
     }
 
     private MemTable createMemTable(Iterator<TimestampEntry> data) {
@@ -55,6 +57,23 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         return new MemTable(store);
     }
 
+    private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {
+        try (Stream<Path> files = Files.list(path)) {
+            final List<String> sstableNames = files
+                    .map(f -> f.getFileName().toString())
+                    .filter(n -> n.contains(SSTABLE_DIR_NAME))
+                    .sorted()
+                    .toList();
+
+            final CopyOnWriteArrayList<SSTable> tables = new CopyOnWriteArrayList<>();
+            for (String name : sstableNames) {
+                tables.add(SSTable.upInstance(path.resolve(name)));
+            }
+
+            return tables;
+        }
+    }
+
     @Override
     public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
         final List<Iterator<TimestampEntry>> iterators = new ArrayList<>();
@@ -62,18 +81,18 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
             iterators.add(table.get(from, to));
         }
 
-        final MemTable.FlushData flushData = memTable.getFlushData();
-        if (flushData != null) {
-            iterators.add(flushData.data);
+        for (MemTable.FlushData flushData : flushSnapshots) {
+            iterators.add(flushData.get(from, to));
         }
 
+        iterators.add(memTable.getFlushData().get(from, to));
         iterators.add(memTable.get(from, to));
 
         return MergedIterator.instanceOf(iterators);
     }
 
     @Override
-    public void upsert(TimestampEntry entry) {
+    public synchronized void upsert(TimestampEntry entry) {
         try {
             if (currentSize.get() >= MAX_MEM_TABLE_SIZE_BYTES) {
                 flush();
@@ -107,41 +126,30 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     }
 
     @Override
-    //TODO: Корявый флаш, можно перезатереть предыдущий
     public void flush() throws IOException {
-        final long timestamp = System.nanoTime();
-        memTable = MemTable.createPreparedToFlush(memTable);
+        final MemTable.FlushData flushData;
+        synchronized (memTable.getFlushData()) {
+            memTable = MemTable.createPreparedToFlush(memTable);
+            flushData = memTable.getFlushData();
+        }
 
-        final MemTable.FlushData flushData = memTable.getFlushData();
         if (flushData.count == 0) {
             return;
         }
 
-        final Path dir = path.resolve(SSTABLE_DIR_NAME + timestamp);
+        final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timestamp);
         Files.createDirectory(dir);
 
-        ssTables.add(SSTable.createInstance(dir, flushData.data, flushData.sizeBytes, flushData.count));
+        flushSnapshots.add(flushData);
+        ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
+        flushSnapshots.remove(flushData);
 
-        memTable = MemTable.createFlushNullable(memTable);
-        loggerAhead.clear(timestamp);
+        loggerAhead.clear(flushData.timestamp);
 
-        log.info("FLUSH | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d".formatted(flushData.count, flushData.sizeBytes));
-    }
-
-    private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {
-        try (Stream<Path> files = Files.list(path)) {
-            final List<String> sstableNames = files
-                    .map(f -> f.getFileName().toString())
-                    .filter(n -> n.contains(SSTABLE_DIR_NAME))
-                    .sorted()
-                    .toList();
-
-            final CopyOnWriteArrayList<SSTable> tables = new CopyOnWriteArrayList<>();
-            for (String name : sstableNames) {
-                tables.add(SSTable.upInstance(path.resolve(name)));
-            }
-
-            return tables;
+        synchronized (memTable.getFlushData()) {
+            memTable = MemTable.createFlushNullable(memTable);
         }
+
+        log.info("FLUSHED | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d".formatted(flushData.count, flushData.sizeBytes));
     }
 }
