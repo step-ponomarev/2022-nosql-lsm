@@ -55,8 +55,7 @@ public final class AheadLogger implements Closeable {
         executorService.execute(Logger::new);
         executorService.shutdown();
     }
-
-
+    
     public void log(TimestampEntry entry) {
         log.add(entry);
     }
