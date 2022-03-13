@@ -20,37 +20,42 @@ public final class AheadLogger implements Closeable {
     private static final TimestampEntry FINAL_ENTRY = new TimestampEntry(null, -1);
     private final ExecutorService executorService;
 
+    private final class Logger implements Runnable {
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    final TimestampEntry timedLog = log.take();
+                    final boolean finalEntry = timedLog.equals(FINAL_ENTRY);
+                    if (finalEntry && log.isEmpty()) {
+                        break;
+                    }
+
+                    if (finalEntry) {
+                        log.put(FINAL_ENTRY);
+                    }
+
+                    if (!finalEntry) {
+                        commitLog.log(timedLog);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+    }
+
     public AheadLogger(Path path, long size) throws IOException {
         this.commitLog = new CommitLog(path, size);
         this.log = new LinkedBlockingQueue<>();
 
         executorService = Executors.newSingleThreadExecutor();
-        executorService.execute(() -> {
-                    while (true) {
-                        try {
-                            final TimestampEntry timedLog = log.take();
-                            final boolean finalEntry = timedLog.equals(FINAL_ENTRY);
-                            if (finalEntry && log.isEmpty()) {
-                                break;
-                            }
-
-                            if (finalEntry) {
-                                log.put(FINAL_ENTRY);
-                            }
-
-                            if (!finalEntry) {
-                                commitLog.log(timedLog);
-                            }
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-                }
-        );
+        executorService.execute(Logger::new);
         executorService.shutdown();
     }
+
 
     public void log(TimestampEntry entry) {
         log.add(entry);
