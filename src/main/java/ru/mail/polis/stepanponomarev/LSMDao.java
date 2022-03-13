@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
-    private static final Logger log = Logger.getLogger(LsmDao.class.getSimpleName());
+public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
+    private static final Logger log = Logger.getLogger(LSMDao.class.getSimpleName());
 
     private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
@@ -35,7 +35,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     private volatile MemTable memTable;
 
-    public LsmDao(Path basePath) throws IOException {
+    public LSMDao(Path basePath) throws IOException {
         if (Files.notExists(basePath)) {
             throw new IllegalArgumentException("Path: " + basePath + "is not exist");
         }

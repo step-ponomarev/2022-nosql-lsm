@@ -4,7 +4,7 @@ import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
-import ru.mail.polis.stepanponomarev.LsmDao;
+import ru.mail.polis.stepanponomarev.LSMDao;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.test.DaoFactory;
@@ -24,7 +24,7 @@ public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Times
             Files.createDirectory(path);
         }
 
-        return new LsmDao(path);
+        return new LSMDao(path);
     }
 
     @Override
