@@ -29,16 +29,16 @@ public final class LoggerAhead implements Closeable {
             while (true) {
                 try {
                     final TimestampEntry timedLog = entryQueue.take();
-                    final boolean finalEntry = timedLog.equals(CLOSE_SIGNAL);
-                    if (finalEntry && entryQueue.isEmpty()) {
+                    final boolean stopped = timedLog.equals(CLOSE_SIGNAL);
+                    if (stopped && entryQueue.isEmpty()) {
                         break;
                     }
 
-                    if (finalEntry) {
+                    if (stopped) {
                         entryQueue.put(CLOSE_SIGNAL);
                     }
 
-                    if (!finalEntry) {
+                    if (!stopped) {
                         commitLog.log(timedLog);
                     }
                 } catch (IOException e) {
