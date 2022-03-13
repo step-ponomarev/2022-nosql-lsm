@@ -124,9 +124,9 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
         final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timeNs);
         Files.createDirectory(dir);
 
-        ArrayList<SSTable> ssTables = new ArrayList<>(this.ssTables);
-        ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
-        this.ssTables = ssTables;
+        ArrayList<SSTable> newSstable = new ArrayList<>(this.ssTables);
+        newSstable.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
+        ssTables = newSstable;
 
         memTable = MemTable.createFlushNullable(memTable, flushKeyTimestamp);
 
