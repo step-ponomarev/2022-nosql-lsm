@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public final class LoggerAhead implements Closeable {
-    private static final java.util.logging.Logger log = Logger.getLogger(LoggerAhead.class.getSimpleName());
+    private static final Logger log = Logger.getLogger(LoggerAhead.class.getSimpleName());
 
     private static final TimestampEntry CLOSE_SIGNAL = new TimestampEntry(null, -1);
 

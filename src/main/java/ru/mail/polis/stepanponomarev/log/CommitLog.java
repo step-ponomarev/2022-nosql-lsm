@@ -16,7 +16,7 @@ import java.util.Iterator;
 import java.util.logging.Logger;
 
 final class CommitLog {
-    private static final java.util.logging.Logger log = Logger.getLogger(CommitLog.class.getSimpleName());
+    private static final Logger log = Logger.getLogger(CommitLog.class.getSimpleName());
 
     private static final String FILE_NAME = "commit.log";
     private static final long START_OFFSET = Long.BYTES;
