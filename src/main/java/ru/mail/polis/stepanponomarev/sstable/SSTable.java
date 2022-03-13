@@ -41,7 +41,7 @@ public final class SSTable {
                 0,
                 fileSize,
                 FileChannel.MapMode.READ_ONLY,
-                ResourceScope.newConfinedScope()
+                ResourceScope.newSharedScope()
         );
 
         return new SSTable(
@@ -102,15 +102,8 @@ public final class SSTable {
             return Collections.emptyIterator();
         }
 
-        final long fromPosition = index.getKeyPosition(from);
-        if (fromPosition == -1) {
-            return Collections.emptyIterator();
-        }
-
-        long toPosition = index.getKeyPosition(to);
-        if (toPosition == -1) {
-            toPosition = size;
-        }
+        final long fromPosition = from == null ? 0 : index.getKeyPosition(from);
+        final long toPosition = to == null ? size : index.getKeyPosition(to);
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }

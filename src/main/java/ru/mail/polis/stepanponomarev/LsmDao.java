@@ -85,7 +85,6 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
             iterators.add(flushData.get(from, to));
         }
 
-        iterators.add(memTable.getFlushData().get(from, to));
         iterators.add(memTable.get(from, to));
 
         return MergedIterator.instanceOf(iterators);
@@ -93,6 +92,10 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     @Override
     public void upsert(TimestampEntry entry) {
+        memTable.put(entry);
+        loggerAhead.log(entry);
+        currentSize.addAndGet(Utils.sizeOf(entry));
+
         try {
             if (currentSize.get() >= MAX_MEM_TABLE_SIZE_BYTES) {
                 flush();
@@ -100,10 +103,6 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-
-        loggerAhead.log(entry);
-        memTable.put(entry);
-        currentSize.addAndGet(Utils.sizeOf(entry));
     }
 
     @Override
@@ -113,40 +112,32 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     }
 
     @Override
-    public void flush() throws IOException {
+    public synchronized void flush() throws IOException {
         final MemTable.FlushData flushData;
         synchronized (memTable.getFlushData()) {
             memTable = MemTable.createPreparedToFlush(memTable);
             flushData = memTable.getFlushData();
+            flushSnapshots.add(flushData);
+            currentSize.set(0);
         }
 
         if (flushData.count == 0) {
+            flushSnapshots.remove(flushData);
             return;
         }
 
         final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timestamp);
         Files.createDirectory(dir);
 
-        flushSnapshots.add(flushData);
         ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
         flushSnapshots.remove(flushData);
-
-        loggerAhead.clear(flushData.timestamp);
 
         synchronized (memTable.getFlushData()) {
             memTable = MemTable.createFlushNullable(memTable);
         }
 
-        resetCurrentSizeBytes();
+        loggerAhead.clear(flushData.timestamp);
 
         log.info("FLUSHED | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d".formatted(flushData.count, flushData.sizeBytes));
-    }
-
-    private void resetCurrentSizeBytes() {
-        final long sizeBefore = currentSize.get();
-        long size;
-        do {
-            size = currentSize.get();
-        } while (!currentSize.compareAndSet(size, size - sizeBefore));
     }
 }
