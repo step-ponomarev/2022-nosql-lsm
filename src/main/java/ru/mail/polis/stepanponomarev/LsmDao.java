@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     private static final Logger log = Logger.getLogger(LsmDao.class.getSimpleName());
 
-    private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
+    private static final long MAX_MEM_TABLE_SIZE_BYTES = 1;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
@@ -112,7 +112,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     }
 
     @Override
-    public synchronized void flush() throws IOException {
+    public void flush() throws IOException {
         final MemTable.FlushData flushData;
         synchronized (memTable.getFlushData()) {
             memTable = MemTable.createPreparedToFlush(memTable);
