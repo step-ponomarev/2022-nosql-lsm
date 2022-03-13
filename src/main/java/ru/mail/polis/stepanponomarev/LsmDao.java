@@ -87,6 +87,14 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
         logger.log(entry);
         memTable.put(entry);
+        increaseSize(Utils.sizeOf(entry));
+    }
+
+    private void increaseSize(long size) {
+        long expectedSize;
+        do {
+            expectedSize = currentSize.get();
+        } while (!currentSize.compareAndSet(expectedSize, expectedSize + size));
     }
 
     @Override
