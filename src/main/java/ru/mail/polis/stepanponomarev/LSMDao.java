@@ -31,7 +31,6 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     private final AtomicLong currentSize = new AtomicLong();
     private final CopyOnWriteArrayList<SSTable> ssTables;
-    private final CopyOnWriteArrayList<MemTable.FlushData> flushSnapshots;
 
     private volatile MemTable memTable;
 
@@ -44,7 +43,6 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
         loggerAhead = new LoggerAhead(path, MAX_MEM_TABLE_SIZE_BYTES);
         memTable = createMemTable(loggerAhead.load());
         ssTables = createStore(path);
-        flushSnapshots = new CopyOnWriteArrayList<>();
     }
 
     private MemTable createMemTable(Iterator<TimestampEntry> data) {
@@ -81,10 +79,7 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
             iterators.add(table.get(from, to));
         }
 
-        for (MemTable.FlushData flushData : flushSnapshots) {
-            iterators.add(flushData.get(from, to));
-        }
-
+        iterators.add(memTable.getCurrentFlushData().get(from, to));
         iterators.add(memTable.get(from, to));
 
         return MergedIterator.instanceOf(iterators);
@@ -115,29 +110,17 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
     public void flush() throws IOException {
         final long timeMs = System.currentTimeMillis();
 
-        final MemTable.FlushData flushData;
-        synchronized (memTable.getFlushData()) {
-            memTable = MemTable.createPreparedToFlush(memTable);
-            flushData = memTable.getFlushData();
-
-            currentSize.set(0);
-            flushSnapshots.add(flushData);
-
-            if (flushData.count == 0) {
-                log.info("MISS_FLUSH | TIME_MS: %d | TIME_NS %d".formatted(timeMs, flushData.timeNs));
-                return;
-            }
-        }
-
+        memTable = MemTable.createPreparedToFlush(memTable);
+        final MemTable.FlushData flushData = memTable.getCurrentFlushData();
         final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timeNs);
-        Files.createDirectory(dir);
-
-        ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
-        flushSnapshots.remove(flushData);
-
-        synchronized (memTable.getFlushData()) {
+        if (Files.exists(dir) || flushData.count == 0) {
             memTable = MemTable.createFlushNullable(memTable);
+            return;
         }
+
+        Files.createDirectory(dir);
+        ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
+        memTable = MemTable.createFlushNullable(memTable);
 
         loggerAhead.clear(flushData.timeNs);
 
