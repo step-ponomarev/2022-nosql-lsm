@@ -96,12 +96,6 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         try {
             if (currentSize.get() >= MAX_MEM_TABLE_SIZE_BYTES) {
                 flush();
-
-                final long sizeBefore = currentSize.get();
-                long size;
-                do {
-                    size = currentSize.get();
-                } while (!currentSize.compareAndSet(size, size - sizeBefore));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -109,14 +103,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
         loggerAhead.log(entry);
         memTable.put(entry);
-        increaseSize(Utils.sizeOf(entry));
-    }
-
-    private void increaseSize(long size) {
-        long expectedSize;
-        do {
-            expectedSize = currentSize.get();
-        } while (!currentSize.compareAndSet(expectedSize, expectedSize + size));
+        currentSize.addAndGet(Utils.sizeOf(entry));
     }
 
     @Override
@@ -150,6 +137,16 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
             memTable = MemTable.createFlushNullable(memTable);
         }
 
+        resetCurrentSizeBytes();
+
         log.info("FLUSHED | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d".formatted(flushData.count, flushData.sizeBytes));
+    }
+
+    private void resetCurrentSizeBytes() {
+        final long sizeBefore = currentSize.get();
+        long size;
+        do {
+            size = currentSize.get();
+        } while (!currentSize.compareAndSet(size, size - sizeBefore));
     }
 }
