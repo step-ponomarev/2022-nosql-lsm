@@ -97,11 +97,7 @@ final class Index {
         final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
         final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
 
-        if (compareResult == 0) {
-            return keyPosition;
-        }
-
-        if (left == right) {
+        if (compareResult == 0 || left == right) {
             return keyPosition;
         }
 

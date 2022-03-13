@@ -7,18 +7,16 @@ import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class MemTable {
-    private static final FlushData EMPTY_FLUSH_DATA = new FlushData(Collections.emptyNavigableMap(),0,0);
-
     private final SortedMap<OSXMemorySegment, TimestampEntry> store;
-    private final List<FlushData> flushSnapshots;
-    private final FlushData currentFlushData;
+    private final Map<Long, FlushData> flushSnapshots;
 
     public static final class FlushData {
         private final SortedMap<OSXMemorySegment, TimestampEntry> store;
@@ -43,29 +41,23 @@ public final class MemTable {
     }
 
     public MemTable(SortedMap<OSXMemorySegment, TimestampEntry> store) {
-        this(store, Collections.emptyList());
-    }
-
-    private MemTable(SortedMap<OSXMemorySegment, TimestampEntry> store, List<FlushData> flushSnapshots) {
-        this(
-                store,
-                flushSnapshots,
-                EMPTY_FLUSH_DATA
-        );
+        this(store, Collections.emptyMap());
     }
 
     private MemTable(
             SortedMap<OSXMemorySegment, TimestampEntry> store,
-            List<FlushData> flushSnapshots,
-            FlushData currentFlushData
+            Map<Long, FlushData> flushSnapshots
     ) {
         this.store = store;
         this.flushSnapshots = flushSnapshots;
-        this.currentFlushData = currentFlushData;
     }
 
-    public static MemTable createPreparedToFlush(MemTable memTable) {
-        final SortedMap<OSXMemorySegment, TimestampEntry> clone = new ConcurrentSkipListMap<>();
+    public static MemTable createPreparedToFlush(MemTable memTable, long timestamp) {
+        if (memTable.store.isEmpty()) {
+            return memTable;
+        }
+
+        final SortedMap<OSXMemorySegment, TimestampEntry> storeClone = new ConcurrentSkipListMap<>();
 
         long sizeBytes = 0;
         final Iterator<TimestampEntry> timestampEntryIterator = slice(memTable.store, null, null);
@@ -73,26 +65,21 @@ public final class MemTable {
             TimestampEntry entry = timestampEntryIterator.next();
 
             sizeBytes += Utils.sizeOf(entry);
-            clone.put(entry.key(), entry);
+            storeClone.put(entry.key(), entry);
         }
 
-        final FlushData currentFlushData = clone.isEmpty()
-                ? EMPTY_FLUSH_DATA
-                : new FlushData(clone, sizeBytes, clone.size());
+        final FlushData currentFlushData = new FlushData(storeClone, sizeBytes, storeClone.size());
+        final Map<Long, FlushData> flushSnapshot = new HashMap<>(memTable.flushSnapshots);
+        flushSnapshot.put(timestamp, currentFlushData);
 
-        final List<FlushData> flushSnapshot = new CopyOnWriteArrayList<>(memTable.flushSnapshots);
-        if (!currentFlushData.equals(EMPTY_FLUSH_DATA)) {
-            flushSnapshot.add(currentFlushData);
-        }
-
-        return new MemTable(new ConcurrentSkipListMap<>(), Collections.unmodifiableList(flushSnapshot), currentFlushData);
+        return new MemTable(new ConcurrentSkipListMap<>(), Collections.unmodifiableMap(flushSnapshot));
     }
 
-    public static MemTable createFlushNullable(MemTable memTableWizard) {
-        final CopyOnWriteArrayList<FlushData> flushSnapshot = new CopyOnWriteArrayList<>(memTableWizard.flushSnapshots);
-        flushSnapshot.remove(memTableWizard.currentFlushData);
+    public static MemTable createFlushNullable(MemTable memTableWizard, long timestamp) {
+        final Map<Long, FlushData> flushSnapshot = new HashMap<>(memTableWizard.flushSnapshots);
+        flushSnapshot.remove(timestamp);
 
-        return new MemTable(memTableWizard.store, Collections.unmodifiableList(flushSnapshot));
+        return new MemTable(memTableWizard.store, Collections.unmodifiableMap(flushSnapshot));
     }
 
     public Iterator<TimestampEntry> get(
@@ -100,9 +87,9 @@ public final class MemTable {
             OSXMemorySegment to
     ) {
         final List<Iterator<TimestampEntry>> data = new ArrayList<>(flushSnapshots.size() + 1);
-//        for (FlushData flushData : flushSnapshots) {
-//            data.add(flushData.get(from, to));
-//        }
+        for (FlushData flushData : flushSnapshots.values()) {
+            data.add(flushData.get(from, to));
+        }
 
         data.add(slice(store, from, to));
 
@@ -137,7 +124,7 @@ public final class MemTable {
         return store.put(entry.key(), entry);
     }
 
-    public FlushData getCurrentFlushData() {
-        return currentFlushData;
+    public FlushData getFlushData(long timestamp) {
+        return flushSnapshots.get(timestamp);
     }
 }

@@ -30,7 +30,7 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
     private final LoggerAhead loggerAhead;
 
     private final AtomicLong currentSize = new AtomicLong();
-    private final CopyOnWriteArrayList<SSTable> ssTables;
+    private List<SSTable> ssTables;
 
     private volatile MemTable memTable;
 
@@ -79,7 +79,6 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
             iterators.add(table.get(from, to));
         }
 
-        iterators.add(memTable.getCurrentFlushData().get(from, to));
         iterators.add(memTable.get(from, to));
 
         return MergedIterator.instanceOf(iterators);
@@ -89,11 +88,16 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
     public void upsert(TimestampEntry entry) {
         memTable.put(entry);
         loggerAhead.log(entry);
-        currentSize.addAndGet(Utils.sizeOf(entry));
 
+        final long sizeBytes = currentSize.addAndGet(Utils.sizeOf(entry));
         try {
-            if (currentSize.get() >= MAX_MEM_TABLE_SIZE_BYTES) {
+            if (sizeBytes >= MAX_MEM_TABLE_SIZE_BYTES) {
                 flush();
+
+                currentSize.addAndGet(-sizeBytes);
+                if (currentSize.get() < 0) {
+                    log.warning("Negative size");
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -108,19 +112,23 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     @Override
     public void flush() throws IOException {
-        final long timeMs = System.currentTimeMillis();
+        final long flushStartMs = System.currentTimeMillis();
 
-        memTable = MemTable.createPreparedToFlush(memTable);
-        final MemTable.FlushData flushData = memTable.getCurrentFlushData();
-        final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timeNs);
-        if (Files.exists(dir) || flushData.count == 0) {
-            memTable = MemTable.createFlushNullable(memTable);
+        final long flushKeyTimestamp = System.nanoTime();
+        memTable = MemTable.createPreparedToFlush(memTable, flushKeyTimestamp);
+        final MemTable.FlushData flushData = memTable.getFlushData(flushKeyTimestamp);
+        if (flushData == null) {
             return;
         }
 
+        final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timeNs);
         Files.createDirectory(dir);
+
+        ArrayList<SSTable> ssTables = new ArrayList<>(this.ssTables);
         ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
-        memTable = MemTable.createFlushNullable(memTable);
+        this.ssTables = ssTables;
+
+        memTable = MemTable.createFlushNullable(memTable, flushKeyTimestamp);
 
         loggerAhead.clear(flushData.timeNs);
 
@@ -128,7 +136,7 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
                 "FLUSHED | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d | FLUSH_DURATION_MS: %d".formatted(
                         flushData.count,
                         flushData.sizeBytes,
-                        System.currentTimeMillis() - timeMs
+                        System.currentTimeMillis() - flushStartMs
                 )
         );
     }

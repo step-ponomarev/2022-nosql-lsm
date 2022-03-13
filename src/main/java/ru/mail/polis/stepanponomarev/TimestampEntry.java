@@ -9,6 +9,11 @@ public final class TimestampEntry implements Entry<OSXMemorySegment> {
     private final Entry<OSXMemorySegment> entry;
     private final long timestamp;
 
+    public TimestampEntry(Entry<OSXMemorySegment> entry) {
+        this.entry = entry;
+        this.timestamp = System.nanoTime();
+    }
+
     public TimestampEntry(Entry<OSXMemorySegment> entry, long timestamp) {
         this.entry = entry;
         this.timestamp = timestamp;
