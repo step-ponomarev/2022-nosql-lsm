@@ -2,7 +2,7 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Dao;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
-import ru.mail.polis.stepanponomarev.log.AsyncLogger;
+import ru.mail.polis.stepanponomarev.log.AheadLogger;
 import ru.mail.polis.stepanponomarev.memtable.MemTable;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
@@ -24,7 +24,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
-    private final AsyncLogger logger;
+    private final AheadLogger logger;
 
     private final AtomicLong currentSize = new AtomicLong();
     private final CopyOnWriteArrayList<SSTable> ssTables;
@@ -37,7 +37,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         }
 
         path = basePath;
-        logger = new AsyncLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
+        logger = new AheadLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
         memTable = createMemTable(logger.load());
         ssTables = createStore(path);
     }

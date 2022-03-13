@@ -7,36 +7,49 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class AsyncLogger implements Closeable {
+public final class AheadLogger implements Closeable {
     private final CommitLog commitLog;
-    private final ConcurrentLinkedQueue<TimestampEntry> log;
+    private final BlockingQueue<TimestampEntry> log;
 
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private static final TimestampEntry FINAL_ENTRY = new TimestampEntry(null, -1);
     private final ExecutorService executorService;
 
-    public AsyncLogger(Path path, long size) throws IOException {
+    public AheadLogger(Path path, long size) throws IOException {
         this.commitLog = new CommitLog(path, size);
-        this.log = new ConcurrentLinkedQueue<>();
+        this.log = new LinkedBlockingQueue<>();
 
         executorService = Executors.newSingleThreadExecutor();
         executorService.execute(() -> {
-                    while (closed.get() || !log.isEmpty()) {
-                        final TimestampEntry timedLog = log.remove();
-
+                    while (true) {
                         try {
-                            commitLog.log(timedLog);
+                            final TimestampEntry timedLog = log.take();
+                            final boolean finalEntry = timedLog.equals(FINAL_ENTRY);
+                            if (finalEntry && log.isEmpty()) {
+                                break;
+                            }
+
+                            if (finalEntry) {
+                                log.put(FINAL_ENTRY);
+                            }
+
+                            if (!finalEntry) {
+                                commitLog.log(timedLog);
+                            }
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
                         }
                     }
                 }
         );
+        executorService.shutdown();
     }
 
     public void log(TimestampEntry entry) {
@@ -50,10 +63,9 @@ public final class AsyncLogger implements Closeable {
 
     @Override
     public void close() throws IOException {
-        closed.set(true);
-
-        executorService.shutdown();
         try {
+            log.put(FINAL_ENTRY);
+
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IOException("We are waiting too long.");
             }

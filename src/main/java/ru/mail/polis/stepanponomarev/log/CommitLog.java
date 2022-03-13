@@ -25,7 +25,7 @@ public class CommitLog {
     private MemorySegment logMemorySegment;
 
     public CommitLog(Path path, long size) throws IOException {
-        initSize = size;
+        initSize = size < Long.BYTES ? Long.BYTES : size;
 
         commitLogFile = path.resolve(FILE_NAME);
         final boolean newFile = Files.notExists(commitLogFile);
@@ -33,7 +33,7 @@ public class CommitLog {
             Files.createFile(commitLogFile);
         }
 
-        logMemorySegment = createSegment((long) (size * SIZE_BUFFER_FACTOR));
+        logMemorySegment = createSegment((long) (initSize * SIZE_BUFFER_FACTOR));
         if (newFile) {
             MemoryAccess.setLong(logMemorySegment, START_OFFSET);
         }
@@ -51,8 +51,9 @@ public class CommitLog {
 
     public synchronized void log(TimestampEntry entry) throws IOException {
         final long offset = MemoryAccess.getLong(logMemorySegment);
-        if (offset >= logMemorySegment.byteSize() / 1.2) {
-            logMemorySegment = createSegment((long) (offset * SIZE_BUFFER_FACTOR));
+        final long expectedOffset  = offset + Utils.sizeOf(entry) + Long.BYTES * 2;
+        if (expectedOffset >= logMemorySegment.byteSize()) {
+            logMemorySegment = createSegment((long) (expectedOffset * SIZE_BUFFER_FACTOR));
         }
 
         MemoryAccess.setLong(logMemorySegment, Utils.flush(entry, logMemorySegment, offset));
