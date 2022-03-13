@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 
-public class CommitLog {
+final class CommitLog {
     private static final String FILE_NAME = "commit.log";
     private static final long START_OFFSET = Long.BYTES;
     private static final double SIZE_BUFFER_FACTOR = 1.5;
@@ -51,7 +51,7 @@ public class CommitLog {
 
     public synchronized void log(TimestampEntry entry) throws IOException {
         final long offset = MemoryAccess.getLong(logMemorySegment);
-        final long expectedOffset  = offset + Utils.sizeOf(entry) + Long.BYTES * 2;
+        final long expectedOffset = offset + Utils.sizeOf(entry) + Long.BYTES * 2;
         if (expectedOffset >= logMemorySegment.byteSize()) {
             logMemorySegment = createSegment((long) (expectedOffset * SIZE_BUFFER_FACTOR));
         }
