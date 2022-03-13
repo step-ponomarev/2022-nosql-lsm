@@ -113,20 +113,23 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     @Override
     public void flush() throws IOException {
+        final long timeMs = System.currentTimeMillis();
+
         final MemTable.FlushData flushData;
         synchronized (memTable.getFlushData()) {
             memTable = MemTable.createPreparedToFlush(memTable);
             flushData = memTable.getFlushData();
-            flushSnapshots.add(flushData);
+
             currentSize.set(0);
+            flushSnapshots.add(flushData);
+
+            if (flushData.count == 0) {
+                log.info("MISS_FLUSH | TIME_MS: %d | TIME_NS %d".formatted(timeMs, flushData.timeNs));
+                return;
+            }
         }
 
-        if (flushData.count == 0) {
-            flushSnapshots.remove(flushData);
-            return;
-        }
-
-        final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timestamp);
+        final Path dir = path.resolve(SSTABLE_DIR_NAME + flushData.timeNs);
         Files.createDirectory(dir);
 
         ssTables.add(SSTable.createInstance(dir, flushData.get(), flushData.sizeBytes, flushData.count));
@@ -136,8 +139,14 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
             memTable = MemTable.createFlushNullable(memTable);
         }
 
-        loggerAhead.clear(flushData.timestamp);
+        loggerAhead.clear(flushData.timeNs);
 
-        log.info("FLUSHED | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d".formatted(flushData.count, flushData.sizeBytes));
+        log.info(
+                "FLUSHED | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d | FLUSH_DURATION_MS: %d".formatted(
+                        flushData.count,
+                        flushData.sizeBytes,
+                        System.currentTimeMillis() - timeMs
+                )
+        );
     }
 }

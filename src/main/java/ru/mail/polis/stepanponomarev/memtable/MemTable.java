@@ -18,13 +18,13 @@ public final class MemTable {
         private final SortedMap<OSXMemorySegment, TimestampEntry> store;
         public final long sizeBytes;
         public final int count;
-        public final long timestamp;
+        public final long timeNs;
 
         public FlushData(SortedMap<OSXMemorySegment, TimestampEntry> flushData, long sizeBytes, int count) {
             this.store = flushData;
             this.sizeBytes = sizeBytes;
             this.count = count;
-            this.timestamp = System.nanoTime();
+            this.timeNs = System.nanoTime();
         }
 
         public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
@@ -33,19 +33,6 @@ public final class MemTable {
 
         public Iterator<TimestampEntry> get() {
             return slice(store, null, null);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FlushData flushData = (FlushData) o;
-            return sizeBytes == flushData.sizeBytes && count == flushData.count && timestamp == flushData.timestamp;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(sizeBytes, count, timestamp);
         }
     }
 

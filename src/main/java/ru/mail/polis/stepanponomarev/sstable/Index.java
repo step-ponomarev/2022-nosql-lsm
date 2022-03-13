@@ -73,35 +73,27 @@ final class Index {
         }
     }
 
-    public long getKeyPosition(OSXMemorySegment key) {
-        if (key == null) {
-            return -1;
-        }
-
+    public long findKeyPositionOrNear(OSXMemorySegment key) {
         final long firstIndexOrderPosition = 0;
         final OSXMemorySegment minKey = getKeyByIndexOrderPosition(firstIndexOrderPosition);
         if (key.compareTo(minKey) < 0) {
-            return -1;
+            return 0;
         }
 
         final long lastIndexOrderPosition = indexMemorySegment.byteSize() / Long.BYTES - 1;
         final OSXMemorySegment maxKey = getKeyByIndexOrderPosition(lastIndexOrderPosition);
         if (key.compareTo(maxKey) > 0) {
-            return -1;
+            return indexMemorySegment.byteSize();
         }
 
-        return getKeyPosition(key, firstIndexOrderPosition, lastIndexOrderPosition);
+        return findKeyPositionOrNear(key, firstIndexOrderPosition, lastIndexOrderPosition);
     }
 
-    private long getKeyPosition(OSXMemorySegment key, long left, long right) {
-        if (left > right) {
-            return -1;
-        }
-
+    private long findKeyPositionOrNear(OSXMemorySegment key, long left, long right) {
         final long mid = left + (right - left) / 2;
         final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
-        final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
 
+        final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
         final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
         final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
 
@@ -109,11 +101,15 @@ final class Index {
             return keyPosition;
         }
 
-        if (compareResult < 0) {
-            return getKeyPosition(key, left, mid - 1);
+        if (left == right) {
+            return keyPosition;
         }
 
-        return getKeyPosition(key, mid + 1, right);
+        if (compareResult < 0) {
+            return findKeyPositionOrNear(key, left, mid - 1);
+        }
+
+        return findKeyPositionOrNear(key, mid + 1, right);
     }
 
     private OSXMemorySegment getKeyByIndexOrderPosition(long index) {

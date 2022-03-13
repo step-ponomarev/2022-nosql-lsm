@@ -96,14 +96,17 @@ public final class SSTable {
         return positions;
     }
 
-    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
+    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
         final long size = tableMemorySegment.byteSize();
         if (size == 0) {
             return Collections.emptyIterator();
         }
 
-        final long fromPosition = from == null ? 0 : index.getKeyPosition(from);
-        final long toPosition = to == null ? size : index.getKeyPosition(to);
+        final long fromPosition = from == null ? 0 : index.findKeyPositionOrNear(from);
+        final long toPosition = to == null ? size : index.findKeyPositionOrNear(to);
+        if (fromPosition == toPosition) {
+            return Collections.emptyIterator();
+        }
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
