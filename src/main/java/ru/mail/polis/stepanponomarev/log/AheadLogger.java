@@ -14,11 +14,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 public final class AheadLogger implements Closeable {
-    private final CommitLog commitLog;
-    private final BlockingQueue<TimestampEntry> log;
+    private static final TimestampEntry CLOSE_SIGNAL = new TimestampEntry(null, -1);
 
-    private static final TimestampEntry FINAL_ENTRY = new TimestampEntry(null, -1);
+    private final CommitLog commitLog;
     private final ExecutorService executorService;
+    private final BlockingQueue<TimestampEntry> log;
 
     private final class Logger implements Runnable {
         @Override
@@ -26,13 +26,13 @@ public final class AheadLogger implements Closeable {
             while (true) {
                 try {
                     final TimestampEntry timedLog = log.take();
-                    final boolean finalEntry = timedLog.equals(FINAL_ENTRY);
+                    final boolean finalEntry = timedLog.equals(CLOSE_SIGNAL);
                     if (finalEntry && log.isEmpty()) {
                         break;
                     }
 
                     if (finalEntry) {
-                        log.put(FINAL_ENTRY);
+                        log.put(CLOSE_SIGNAL);
                     }
 
                     if (!finalEntry) {
@@ -55,7 +55,7 @@ public final class AheadLogger implements Closeable {
         executorService.execute(Logger::new);
         executorService.shutdown();
     }
-    
+
     public void log(TimestampEntry entry) {
         log.add(entry);
     }
@@ -68,7 +68,7 @@ public final class AheadLogger implements Closeable {
     @Override
     public void close() throws IOException {
         try {
-            log.put(FINAL_ENTRY);
+            log.put(CLOSE_SIGNAL);
 
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IOException("We are waiting too long.");
