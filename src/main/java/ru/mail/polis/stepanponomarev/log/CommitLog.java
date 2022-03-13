@@ -13,8 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.logging.Logger;
 
 final class CommitLog {
+    private static final java.util.logging.Logger log = Logger.getLogger(CommitLog.class.getSimpleName());
+
     private static final String FILE_NAME = "commit.log";
     private static final long START_OFFSET = Long.BYTES;
     private static final double SIZE_BUFFER_FACTOR = 1.5;
@@ -51,17 +54,26 @@ final class CommitLog {
 
     public synchronized void log(TimestampEntry entry) throws IOException {
         final long offset = MemoryAccess.getLong(logMemorySegment);
-        final long expectedOffset = offset + Utils.sizeOf(entry) + Long.BYTES * 2;
-        if (expectedOffset >= logMemorySegment.byteSize()) {
-            logMemorySegment = createSegment((long) (expectedOffset * SIZE_BUFFER_FACTOR));
+        final long requiredOffset = offset + Utils.sizeOf(entry) + Long.BYTES * 2;
+        final long currentSizeInBytes = logMemorySegment.byteSize();
+
+        if (requiredOffset >= currentSizeInBytes) {
+            final String logMsg = "ALLOCATE_MEMORY | CURRENT_SIZE_IN_BYTES: %d | REQUIRED_OFFSET: %d";
+            log.info(logMsg.formatted(currentSizeInBytes, requiredOffset));
+
+            logMemorySegment = createSegment((long) (requiredOffset * SIZE_BUFFER_FACTOR));
         }
 
         MemoryAccess.setLong(logMemorySegment, Utils.flush(entry, logMemorySegment, offset));
     }
 
     public synchronized void clean() throws IOException {
+        final long currentSizeBytes = logMemorySegment.byteSize();
+
         MemoryAccess.setLong(logMemorySegment, START_OFFSET);
         logMemorySegment = createSegment((long) (initSize * SIZE_BUFFER_FACTOR));
+
+        log.info("CLEAN | CURRENT_SIZE_IN_BYTES: %d".formatted(currentSizeBytes));
     }
 
     private MemorySegment createSegment(long size) throws IOException {

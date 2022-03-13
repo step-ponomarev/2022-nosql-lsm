@@ -2,7 +2,7 @@ package ru.mail.polis.stepanponomarev;
 
 import ru.mail.polis.Dao;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
-import ru.mail.polis.stepanponomarev.log.AheadLogger;
+import ru.mail.polis.stepanponomarev.log.LoggerAhead;
 import ru.mail.polis.stepanponomarev.memtable.MemTable;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
@@ -17,14 +17,17 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
+    private static final Logger log = Logger.getLogger(LsmDao.class.getSimpleName());
+
     private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
-    private final AheadLogger logger;
+    private final LoggerAhead loggerAhead;
 
     private final AtomicLong currentSize = new AtomicLong();
     private final CopyOnWriteArrayList<SSTable> ssTables;
@@ -37,8 +40,8 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         }
 
         path = basePath;
-        logger = new AheadLogger(path, MAX_MEM_TABLE_SIZE_BYTES);
-        memTable = createMemTable(logger.load());
+        loggerAhead = new LoggerAhead(path, MAX_MEM_TABLE_SIZE_BYTES);
+        memTable = createMemTable(loggerAhead.load());
         ssTables = createStore(path);
     }
 
@@ -85,7 +88,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
             throw new UncheckedIOException(e);
         }
 
-        logger.log(entry);
+        loggerAhead.log(entry);
         memTable.put(entry);
         increaseSize(Utils.sizeOf(entry));
     }
@@ -99,7 +102,7 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     @Override
     public void close() throws IOException {
-        logger.close();
+        loggerAhead.close();
         flush();
     }
 
@@ -108,7 +111,11 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
     public void flush() throws IOException {
         final long timestamp = System.nanoTime();
         memTable = MemTable.createPreparedToFlush(memTable);
-        MemTable.FlushData flushData = memTable.getFlushData();
+
+        final MemTable.FlushData flushData = memTable.getFlushData();
+        if (flushData.count == 0) {
+            return;
+        }
 
         final Path dir = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(dir);
@@ -116,7 +123,9 @@ public class LsmDao implements Dao<OSXMemorySegment, TimestampEntry> {
         ssTables.add(SSTable.createInstance(dir, flushData.data, flushData.sizeBytes, flushData.count));
 
         memTable = MemTable.createFlushNullable(memTable);
-        logger.clear(timestamp);
+        loggerAhead.clear(timestamp);
+
+        log.info("FLUSH | ENTRY_COUNT: %d | SIZE_IN_BYTES: %d".formatted(flushData.count, flushData.sizeBytes));
     }
 
     private CopyOnWriteArrayList<SSTable> createStore(Path path) throws IOException {

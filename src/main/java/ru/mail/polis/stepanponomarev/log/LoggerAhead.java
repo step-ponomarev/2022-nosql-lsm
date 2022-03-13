@@ -12,27 +12,30 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
-public final class AheadLogger implements Closeable {
+public final class LoggerAhead implements Closeable {
+    private static final java.util.logging.Logger log = Logger.getLogger(LoggerAhead.class.getSimpleName());
+
     private static final TimestampEntry CLOSE_SIGNAL = new TimestampEntry(null, -1);
 
     private final CommitLog commitLog;
     private final ExecutorService executorService;
-    private final BlockingQueue<TimestampEntry> log;
+    private final BlockingQueue<TimestampEntry> entryQueue;
 
-    private final class Logger implements Runnable {
+    private final class AsyncLogger implements Runnable {
         @Override
         public void run() {
             while (true) {
                 try {
-                    final TimestampEntry timedLog = log.take();
+                    final TimestampEntry timedLog = entryQueue.take();
                     final boolean finalEntry = timedLog.equals(CLOSE_SIGNAL);
-                    if (finalEntry && log.isEmpty()) {
+                    if (finalEntry && entryQueue.isEmpty()) {
                         break;
                     }
 
                     if (finalEntry) {
-                        log.put(CLOSE_SIGNAL);
+                        entryQueue.put(CLOSE_SIGNAL);
                     }
 
                     if (!finalEntry) {
@@ -47,28 +50,30 @@ public final class AheadLogger implements Closeable {
         }
     }
 
-    public AheadLogger(Path path, long size) throws IOException {
+    public LoggerAhead(Path path, long size) throws IOException {
         this.commitLog = new CommitLog(path, size);
-        this.log = new LinkedBlockingQueue<>();
+        this.entryQueue = new LinkedBlockingQueue<>();
 
         executorService = Executors.newSingleThreadExecutor();
-        executorService.execute(Logger::new);
+        executorService.execute(AsyncLogger::new);
         executorService.shutdown();
     }
 
     public void log(TimestampEntry entry) {
-        log.add(entry);
+        entryQueue.add(entry);
     }
 
     public void clear(long timestamp) throws IOException {
-        log.removeIf(e -> e.getTimestamp() < timestamp);
+        entryQueue.removeIf(e -> e.getTimestamp() < timestamp);
         commitLog.clean();
     }
 
     @Override
     public void close() throws IOException {
+        log.info("STOPPING COMMIT LOGGER");
+
         try {
-            log.put(CLOSE_SIGNAL);
+            entryQueue.put(CLOSE_SIGNAL);
 
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IOException("We are waiting too long.");
@@ -80,6 +85,8 @@ public final class AheadLogger implements Closeable {
                 throw new IOException("Very strange unexpected exception", e);
             }
         }
+
+        log.info("COMMIT LOGGER IS STOPPED");
     }
 
     public Iterator<TimestampEntry> load() {
