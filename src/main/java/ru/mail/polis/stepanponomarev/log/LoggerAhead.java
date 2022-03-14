@@ -90,6 +90,8 @@ public final class LoggerAhead implements Closeable {
     }
 
     public Iterator<TimestampEntry> load() {
+
+
         return commitLog.load();
     }
 }

@@ -28,14 +28,14 @@ public final class SSTable {
     public static SSTable createInstance(
             Path path,
             Iterator<TimestampEntry> data,
-            long dataSize,
-            int dataAmount
+            long sizeBytes,
+            int count
     ) throws IOException {
         final Path file = path.resolve(FILE_NAME);
         Files.createFile(file);
 
-        final long fileSize = (long) Long.BYTES * 2 * dataAmount + dataSize;
-        final long[] positions = flushAndAndGetPositions(file, data, fileSize, dataAmount);
+        final long fileSize = (long) Long.BYTES * 2 * count + sizeBytes;
+        final long[] positions = flushAndAndGetPositions(file, data, fileSize, count);
         final MemorySegment tableMemorySegment = MemorySegment.mapFile(
                 file,
                 0,
