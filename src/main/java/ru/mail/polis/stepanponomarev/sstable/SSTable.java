@@ -102,6 +102,8 @@ public final class SSTable {
             return Collections.emptyIterator();
         }
 
+        //TODO: Есть бага с поиском индекса:
+        // test_10_000 на 1 байте данных
         final long fromPosition = from == null ? 0 : index.findKeyPositionOrNear(from);
         final long toPosition = to == null ? size : index.findKeyPositionOrNear(to);
         if (fromPosition == toPosition) {
