@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 final class AtomicStore {
     private final List<SSTable> ssTables;
-    private final Map<Long, FlushData> flushSnapshots;
+    private final Map<Long, FlushData> flushData;
     private final SortedMap<OSXMemorySegment, TimestampEntry> memTable;
 
     public AtomicStore(List<SSTable> ssTables, SortedMap<OSXMemorySegment, TimestampEntry> memTable) {
@@ -26,16 +26,16 @@ final class AtomicStore {
 
     private AtomicStore(
             List<SSTable> ssTables,
-            Map<Long, FlushData> flushSnapshots,
+            Map<Long, FlushData> flushData,
             SortedMap<OSXMemorySegment, TimestampEntry> memTable
     ) {
         this.ssTables = ssTables;
-        this.flushSnapshots = flushSnapshots;
+        this.flushData = flushData;
         this.memTable = memTable;
     }
 
     public static AtomicStore prepareToFlush(AtomicStore flushStore, long timestamp) {
-        if (flushStore.flushSnapshots.containsKey(timestamp)) {
+        if (flushStore.flushData.containsKey(timestamp)) {
             throw new IllegalStateException("Trying to flush already flushed data.");
         }
 
@@ -51,14 +51,14 @@ final class AtomicStore {
         }
 
         final FlushData flushData = new FlushData(flushingData, size, flushingData.size());
-        final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushSnapshots);
+        final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
         flushSnapshots.put(timestamp, flushData);
 
         return new AtomicStore(flushStore.ssTables, flushSnapshots, new ConcurrentSkipListMap<>());
     }
 
     public static AtomicStore afterFlush(AtomicStore flushStore, SSTable newSSTable, long timestamp) {
-        final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushSnapshots);
+        final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
         flushSnapshots.remove(timestamp);
 
         List<SSTable> newSSTables = new ArrayList<>(flushStore.ssTables);
@@ -72,16 +72,16 @@ final class AtomicStore {
     }
 
     public FlushData getFlushData(long timestamp) {
-        return flushSnapshots.get(timestamp);
+        return flushData.get(timestamp);
     }
 
     public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
-        final List<Iterator<TimestampEntry>> data = new ArrayList<>(ssTables.size() + flushSnapshots.size() + 1);
+        final List<Iterator<TimestampEntry>> data = new ArrayList<>(ssTables.size() + flushData.size() + 1);
         for (SSTable ssTable : ssTables) {
             data.add(ssTable.get(from, to));
         }
 
-        for (FlushData flushData : flushSnapshots.values()) {
+        for (FlushData flushData : flushData.values()) {
             data.add(flushData.get(from, to));
         }
 
