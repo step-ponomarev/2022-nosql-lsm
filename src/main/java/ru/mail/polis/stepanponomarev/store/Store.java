@@ -42,12 +42,12 @@ public final class Store {
         final long sizeBytesBeforeFlush = sizeBytes.get();
 
         atomicStore = AtomicIStore.prepareToFlush(atomicStore, timestamp);
-        FlushData flushData = atomicStore.getFlushData(timestamp);
+        final FlushData flushData = atomicStore.getFlushData(timestamp);
         if (flushData == null) {
             return;
         }
 
-        Path sstablePath = path.resolve(SSTABLE_DIR_NAME + timestamp);
+        final Path sstablePath = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(sstablePath);
 
         SSTable newSSTable = SSTable.createInstance(sstablePath, flushData.get(), flushData.sizeBytes, flushData.count);
@@ -56,10 +56,7 @@ public final class Store {
         sizeBytes.addAndGet(-sizeBytesBeforeFlush);
     }
 
-    public Iterator<TimestampEntry> get(
-            OSXMemorySegment from,
-            OSXMemorySegment to
-    ) {
+    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
         return atomicStore.get(from, to);
     }
 
