@@ -81,8 +81,8 @@ final class AtomicStore {
             data.add(ssTable.get(from, to));
         }
 
-        for (FlushData flushData : flushData.values()) {
-            data.add(flushData.get(from, to));
+        for (FlushData fd : flushData.values()) {
+            data.add(fd.get(from, to));
         }
 
         data.add(Utils.slice(memTable, from, to));
