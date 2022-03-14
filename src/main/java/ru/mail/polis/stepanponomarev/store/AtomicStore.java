@@ -44,17 +44,13 @@ final class AtomicStore {
         }
 
         long size = 0;
-        final ConcurrentSkipListMap<OSXMemorySegment, TimestampEntry> flushingMemTable
-                = new ConcurrentSkipListMap<>();
-
-        Iterator<TimestampEntry> iterator = flushStore.memTable.values().iterator();
-        while (iterator.hasNext()) {
-            final TimestampEntry entry = iterator.next();
+        final ConcurrentSkipListMap<OSXMemorySegment, TimestampEntry> flushingData = new ConcurrentSkipListMap<>();
+        for (TimestampEntry entry : flushStore.memTable.values()) {
             size += Utils.sizeOf(entry);
-            flushingMemTable.put(entry.key(), entry);
+            flushingData.put(entry.key(), entry);
         }
 
-        final FlushData flushData = new FlushData(flushingMemTable, size, flushingMemTable.size());
+        final FlushData flushData = new FlushData(flushingData, size, flushingData.size());
         final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushSnapshots);
         flushSnapshots.put(timestamp, flushData);
 
