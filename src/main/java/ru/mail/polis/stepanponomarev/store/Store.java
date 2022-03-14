@@ -21,7 +21,7 @@ public final class Store {
 
     private final Path path;
     private final AtomicLong sizeBytes;
-    private volatile AtomicIStore atomicStore;
+    private volatile AtomicStore atomicStore;
 
     public Store(Path path, Iterator<TimestampEntry> initData) throws IOException {
         this.path = path;
@@ -35,13 +35,13 @@ public final class Store {
         }
 
         this.sizeBytes = new AtomicLong(initSizeBytes);
-        this.atomicStore = new AtomicIStore(wakeUpSSTables(path), memTable);
+        this.atomicStore = new AtomicStore(wakeUpSSTables(path), memTable);
     }
 
     public void flush(long timestamp) throws IOException {
         final long sizeBytesBeforeFlush = sizeBytes.get();
 
-        atomicStore = AtomicIStore.prepareToFlush(atomicStore, timestamp);
+        atomicStore = AtomicStore.prepareToFlush(atomicStore, timestamp);
         final FlushData flushData = atomicStore.getFlushData(timestamp);
         if (flushData == null) {
             return;
@@ -51,7 +51,7 @@ public final class Store {
         Files.createDirectory(sstablePath);
 
         SSTable newSSTable = SSTable.createInstance(sstablePath, flushData.get(), flushData.sizeBytes, flushData.count);
-        atomicStore = AtomicIStore.afterFlush(atomicStore, newSSTable, timestamp);
+        atomicStore = AtomicStore.afterFlush(atomicStore, newSSTable, timestamp);
 
         sizeBytes.addAndGet(-sizeBytesBeforeFlush);
     }

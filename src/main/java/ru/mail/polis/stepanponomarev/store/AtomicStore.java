@@ -15,16 +15,16 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-final class AtomicIStore {
+final class AtomicStore {
     private final List<SSTable> ssTables;
     private final Map<Long, FlushData> flushSnapshots;
     private final SortedMap<OSXMemorySegment, TimestampEntry> memTable;
 
-    public AtomicIStore(List<SSTable> ssTables, SortedMap<OSXMemorySegment, TimestampEntry> memTable) {
+    public AtomicStore(List<SSTable> ssTables, SortedMap<OSXMemorySegment, TimestampEntry> memTable) {
         this(ssTables, Collections.emptyMap(), memTable);
     }
 
-    private AtomicIStore(
+    private AtomicStore(
             List<SSTable> ssTables,
             Map<Long, FlushData> flushSnapshots,
             SortedMap<OSXMemorySegment, TimestampEntry> memTable
@@ -34,7 +34,7 @@ final class AtomicIStore {
         this.memTable = memTable;
     }
 
-    public static AtomicIStore prepareToFlush(AtomicIStore flushStore, long timestamp) {
+    public static AtomicStore prepareToFlush(AtomicStore flushStore, long timestamp) {
         if (flushStore.flushSnapshots.containsKey(timestamp)) {
             throw new IllegalStateException("Trying to flush already flushed data.");
         }
@@ -58,17 +58,17 @@ final class AtomicIStore {
         final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushSnapshots);
         flushSnapshots.put(timestamp, flushData);
 
-        return new AtomicIStore(flushStore.ssTables, flushSnapshots, new ConcurrentSkipListMap<>());
+        return new AtomicStore(flushStore.ssTables, flushSnapshots, new ConcurrentSkipListMap<>());
     }
 
-    public static AtomicIStore afterFlush(AtomicIStore flushStore, SSTable newSSTable, long timestamp) {
+    public static AtomicStore afterFlush(AtomicStore flushStore, SSTable newSSTable, long timestamp) {
         final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushSnapshots);
         flushSnapshots.remove(timestamp);
 
         List<SSTable> newSSTables = new ArrayList<>(flushStore.ssTables);
         newSSTables.add(newSSTable);
 
-        return new AtomicIStore(newSSTables, flushSnapshots, new ConcurrentSkipListMap<>());
+        return new AtomicStore(newSSTables, flushSnapshots, new ConcurrentSkipListMap<>());
     }
 
     public SortedMap<OSXMemorySegment, TimestampEntry> getMemTable() {
