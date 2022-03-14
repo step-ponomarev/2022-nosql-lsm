@@ -34,9 +34,12 @@ final class AtomicIStore {
         this.memTable = memTable;
     }
 
-    public static AtomicIStore prepareToFlush(AtomicIStore flushStore,
-                                              long timestamp) {
-        if (flushStore.flushSnapshots.containsKey(timestamp) || flushStore.memTable.isEmpty()) {
+    public static AtomicIStore prepareToFlush(AtomicIStore flushStore, long timestamp) {
+        if (flushStore.flushSnapshots.containsKey(timestamp)) {
+            throw new IllegalStateException("Trying to flush already flushed data.");
+        }
+
+        if (flushStore.memTable.isEmpty()) {
             return flushStore;
         }
 
