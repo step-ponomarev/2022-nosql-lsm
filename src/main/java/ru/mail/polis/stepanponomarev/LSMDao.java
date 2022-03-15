@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import java.util.Iterator;
 
 public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
-    private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 1;
+    private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
 
     private final Store store;
     private final LoggerAhead loggerAhead;
