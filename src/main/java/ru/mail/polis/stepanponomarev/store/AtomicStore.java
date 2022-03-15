@@ -6,14 +6,9 @@ import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
 
 final class AtomicStore {
     private final List<SSTable> ssTables;
@@ -54,7 +49,26 @@ final class AtomicStore {
         final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
         flushSnapshots.put(timestamp, flushData);
 
-        return new AtomicStore(flushStore.ssTables, flushSnapshots, new ConcurrentSkipListMap<>());
+        return new AtomicStore(
+                flushStore.ssTables,
+                flushSnapshots,
+                filterByTimestamp(flushStore.memTable, timestamp)
+        );
+    }
+
+    private static SortedMap<OSXMemorySegment, TimestampEntry> filterByTimestamp(
+            SortedMap<OSXMemorySegment, TimestampEntry> source,
+            long timestamp
+    ) {
+        return source.entrySet()
+                .stream()
+                .filter(e -> e.getValue().getTimestamp() > timestamp)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (o1, o2) -> o1,
+                        ConcurrentSkipListMap<OSXMemorySegment, TimestampEntry>::new)
+                );
     }
 
     public static AtomicStore afterFlush(AtomicStore flushStore, SSTable newSSTable, long timestamp) {
