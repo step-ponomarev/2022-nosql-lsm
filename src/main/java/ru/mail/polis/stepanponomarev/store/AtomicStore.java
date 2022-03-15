@@ -6,13 +6,7 @@ import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
 
@@ -42,7 +36,10 @@ final class AtomicStore {
         }
 
         if (flushStore.memTable.isEmpty()) {
-            return flushStore;
+            return new AtomicStore(
+                    new ArrayList<>(flushStore.ssTables),
+                    new ConcurrentSkipListMap<>(flushStore.memTable)
+            );
         }
 
         long size = 0;

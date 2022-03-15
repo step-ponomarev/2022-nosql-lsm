@@ -83,7 +83,7 @@ final class Index {
         final long lastIndexOrderPosition = indexMemorySegment.byteSize() / Long.BYTES - 1;
         final OSXMemorySegment maxKey = getKeyByIndexOrderPosition(lastIndexOrderPosition);
         if (key.compareTo(maxKey) > 0) {
-            return indexMemorySegment.byteSize();
+            return tableMemorySegment.byteSize();
         }
 
         return findKeyPositionOrNear(key, firstIndexOrderPosition, lastIndexOrderPosition);
