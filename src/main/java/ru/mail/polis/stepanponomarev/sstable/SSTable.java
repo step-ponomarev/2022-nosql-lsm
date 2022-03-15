@@ -11,27 +11,38 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Stream;
 
 public final class SSTable {
+    private static final String SSTABLE_DIR_NAME = "SSTable_";
+
     private static final String FILE_NAME = "sstable.data";
 
     private final Index index;
+    private final long created;
     private final MemorySegment tableMemorySegment;
 
-    private SSTable(Index index, MemorySegment tableMemorySegment) {
+    private SSTable(Index index, MemorySegment tableMemorySegment, long created) {
         this.index = index;
         this.tableMemorySegment = tableMemorySegment;
+        this.created = created;
     }
 
     public static SSTable createInstance(
             Path path,
             Iterator<TimestampEntry> data,
             long sizeBytes,
-            int count
+            int count,
+            long created
     ) throws IOException {
-        final Path file = path.resolve(FILE_NAME);
+        final Path dir = path.resolve(SSTABLE_DIR_NAME + created);
+        Files.createDirectory(dir);
+
+        final Path file = dir.resolve(FILE_NAME);
         Files.createFile(file);
 
         final long fileSize = (long) Long.BYTES * 2 * count + sizeBytes;
@@ -45,9 +56,31 @@ public final class SSTable {
         );
 
         return new SSTable(
-                Index.createInstance(path, positions, tableMemorySegment),
-                tableMemorySegment
+                Index.createInstance(dir, positions, tableMemorySegment),
+                tableMemorySegment,
+                created
         );
+    }
+
+    public static List<SSTable> wakeUpSSTables(Path path) throws IOException {
+        try (Stream<Path> files = Files.list(path)) {
+            final List<String> tableDirNames = files
+                    .map(f -> f.getFileName().toString())
+                    .filter(n -> n.contains(SSTABLE_DIR_NAME))
+                    .sorted()
+                    .toList();
+
+            final List<SSTable> tables = new ArrayList<>(tableDirNames.size());
+            for (String name : tableDirNames) {
+                tables.add(SSTable.upInstance(path.resolve(name)));
+            }
+
+            return tables;
+        }
+    }
+
+    public long getCreated() {
+        return created;
     }
 
     public static SSTable upInstance(Path path) throws IOException {
@@ -63,9 +96,18 @@ public final class SSTable {
                 FileChannel.MapMode.READ_ONLY,
                 ResourceScope.newSharedScope()
         );
-        final Index index = Index.upInstance(path, memorySegment);
 
-        return new SSTable(index, memorySegment);
+        final Index index = Index.upInstance(path, memorySegment);
+        return new SSTable(index, memorySegment, getCreatedTime(file));
+    }
+
+    private static long getCreatedTime(Path file) {
+        final String pathStr = file.toString();
+        final String lastPathPart = pathStr.substring(pathStr.indexOf(SSTABLE_DIR_NAME));
+
+        return Long.parseLong(
+                lastPathPart.substring(lastPathPart.indexOf("_") + 1, lastPathPart.indexOf("/"))
+        );
     }
 
     private static long[] flushAndAndGetPositions(
@@ -102,13 +144,12 @@ public final class SSTable {
             return Collections.emptyIterator();
         }
 
-        //TODO: Есть ошибка с поиском индексов basic test на 1мб
         final long fromPosition = from == null ? 0 : index.findKeyPositionOrNear(from);
         final long toPosition = to == null ? size : index.findKeyPositionOrNear(to);
         if (fromPosition == toPosition) {
             return Collections.emptyIterator();
         }
 
-        return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
+        return new MappedIterator(tableMemorySegment.asSlice(0, toPosition - fromPosition));
     }
 }
