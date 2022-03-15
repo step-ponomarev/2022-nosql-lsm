@@ -102,12 +102,13 @@ public final class SSTable {
             return Collections.emptyIterator();
         }
 
+        //TODO: Есть ошибка с поиском индексов basic test на 1мб
         final long fromPosition = from == null ? 0 : index.findKeyPositionOrNear(from);
         final long toPosition = to == null ? size : index.findKeyPositionOrNear(to);
         if (fromPosition == toPosition) {
             return Collections.emptyIterator();
         }
 
-        return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
+        return new MappedIterator(tableMemorySegment.asSlice(0, toPosition - fromPosition));
     }
 }
