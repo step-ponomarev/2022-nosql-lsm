@@ -109,6 +109,6 @@ public final class SSTable {
             return Collections.emptyIterator();
         }
 
-        return new MappedIterator(tableMemorySegment.asSlice(0, toPosition - fromPosition));
+        return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
 }
