@@ -51,6 +51,7 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
     }
 
     @Override
+    //TODO: Асинхронный флаш
     public void flush() throws IOException {
         final long timestamp = System.nanoTime();
         store.flush(timestamp);

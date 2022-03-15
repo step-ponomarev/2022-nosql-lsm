@@ -35,6 +35,7 @@ final class AtomicStore {
         this.memTable = memTable;
     }
 
+    //TODO: Слишком много аллокаций
     public static AtomicStore prepareToFlush(AtomicStore flushStore, long timestamp) {
         if (flushStore.flushData.containsKey(timestamp)) {
             throw new IllegalStateException("Trying to flush already flushed data.");
