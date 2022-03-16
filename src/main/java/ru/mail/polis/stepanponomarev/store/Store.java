@@ -23,13 +23,13 @@ public final class Store implements Closeable {
     private final AtomicLong sizeBytes;
     private volatile AtomicStore atomicStore;
 
-    public Store(Path path, Iterator<TimestampEntry> initData) throws IOException {
+    public Store(Path path, Iterator<TimestampEntry> data) throws IOException {
         this.path = path;
 
         final SortedMap<MemorySegment, TimestampEntry> memTable = Utils.createMap();
         long initSizeBytes = 0;
-        while (initData.hasNext()) {
-            final TimestampEntry entry = initData.next();
+        while (data.hasNext()) {
+            final TimestampEntry entry = data.next();
             initSizeBytes += Utils.sizeOf(entry);
             memTable.put(entry.key(), entry);
         }
