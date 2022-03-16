@@ -61,11 +61,11 @@ final class CommitLog implements Closeable {
     public synchronized void log(TimestampEntry entry) throws IOException {
         final long offset = MemoryAccess.getLong(logMemorySegment);
         final long requiredOffset = offset + Utils.sizeOf(entry) + Long.BYTES * 2;
-        final long currentSizeInBytes = logMemorySegment.byteSize();
+        final long sizeBytes = logMemorySegment.byteSize();
 
-        if (requiredOffset >= currentSizeInBytes) {
+        if (requiredOffset >= sizeBytes) {
             final String logMsg = "ALLOCATE_MEMORY | CURRENT_SIZE_IN_BYTES: %d | REQUIRED_OFFSET: %d";
-            log.info(logMsg.formatted(currentSizeInBytes, requiredOffset));
+            log.info(logMsg.formatted(sizeBytes, requiredOffset));
 
             logMemorySegment = createSegment((long) (requiredOffset * SIZE_BUFFER_FACTOR));
         }
