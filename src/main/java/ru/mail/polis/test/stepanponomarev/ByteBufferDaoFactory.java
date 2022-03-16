@@ -1,5 +1,6 @@
 package ru.mail.polis.test.stepanponomarev;
 
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
@@ -10,41 +11,25 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 @DaoFactory
-public class ByteBufferDaoFactory implements DaoFactory.Factory<ByteBuffer, Entry<ByteBuffer>> {
+public class ByteBufferDaoFactory implements DaoFactory.Factory<MemorySegment, Entry<MemorySegment>> {
 
     @Override
-    public Dao<ByteBuffer, Entry<ByteBuffer>> createDao() {
+    public Dao<MemorySegment, Entry<MemorySegment>> createDao() {
         return new InMemoryDao();
     }
 
     @Override
-    public String toString(ByteBuffer data) {
-        if (data == null) {
-            return null;
-        }
-
-        if (!data.hasArray()) {
-            throw new IllegalArgumentException("Buffer should have array");
-        }
-
-        int startIndex = data.arrayOffset();
-        int curIndex = data.arrayOffset() + data.position();
-        int endIndex = curIndex + data.remaining();
-
-        return new String(data.array(), startIndex, endIndex, StandardCharsets.UTF_8);
+    public String toString(MemorySegment data) {
+        return StandardCharsets.UTF_8.decode(data.asByteBuffer()).toString();
     }
 
     @Override
-    public ByteBuffer fromString(String data) {
-        if (data == null) {
-            return null;
-        }
-
-        return ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
+    public MemorySegment fromString(String data) {
+        return MemorySegment.ofByteBuffer(StandardCharsets.UTF_8.encode(data));
     }
 
     @Override
-    public Entry<ByteBuffer> fromBaseEntry(Entry<ByteBuffer> entry) {
-        return new BaseEntry<>(entry.key(), entry.value());
+    public Entry<MemorySegment> fromBaseEntry(Entry<MemorySegment> entry) {
+        return entry;
     }
 }
