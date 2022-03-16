@@ -8,14 +8,14 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class MemTable {
-    private final SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> store = new ConcurrentSkipListMap<>();
+    private final SortedMap<OSXMemorySegment, Entry<OSXMemorySegment>> memTable = new ConcurrentSkipListMap<>();
     private final AtomicLong sizeBytes = new AtomicLong(0);
 
     public Entry<OSXMemorySegment> put(OSXMemorySegment key, Entry<OSXMemorySegment> value) {
-        final Entry<OSXMemorySegment> oldElement = store.get(key);
+        final Entry<OSXMemorySegment> oldElement = memTable.get(key);
 
         synchronized (this) {
-            final Entry<OSXMemorySegment> entry = store.put(key, value);
+            final Entry<OSXMemorySegment> entry = memTable.put(key, value);
 
             final long addedByteSize = key.size()
                     - (oldElement == null ? 0 : oldElement.value().size())
@@ -36,27 +36,27 @@ public final class MemTable {
     }
 
     public int size() {
-        return store.size();
+        return memTable.size();
     }
 
     public synchronized void clear() {
-        store.clear();
+        memTable.clear();
         sizeBytes.set(0);
     }
 
     public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) {
         if (from == null && to == null) {
-            return store.values().iterator();
+            return memTable.values().iterator();
         }
 
         if (from == null) {
-            return store.headMap(to).values().iterator();
+            return memTable.headMap(to).values().iterator();
         }
 
         if (to == null) {
-            return store.tailMap(from).values().iterator();
+            return memTable.tailMap(from).values().iterator();
         }
 
-        return store.subMap(from, to).values().iterator();
+        return memTable.subMap(from, to).values().iterator();
     }
 }
