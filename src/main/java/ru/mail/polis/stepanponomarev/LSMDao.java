@@ -1,5 +1,6 @@
 package ru.mail.polis.stepanponomarev;
 
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.Dao;
 import ru.mail.polis.stepanponomarev.log.LoggerAhead;
 import ru.mail.polis.stepanponomarev.store.Store;
@@ -10,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 
-public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
+public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
 
     private final Store store;
@@ -26,8 +27,13 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
     }
 
     @Override
-    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {
+    public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) throws IOException {
         return store.get(from, to);
+    }
+
+    @Override
+    public TimestampEntry get(MemorySegment key) throws IOException {
+        return store.get(key);
     }
 
     @Override

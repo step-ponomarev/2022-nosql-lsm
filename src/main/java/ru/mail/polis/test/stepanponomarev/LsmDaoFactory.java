@@ -5,7 +5,6 @@ import ru.mail.polis.Config;
 import ru.mail.polis.Dao;
 import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.LSMDao;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.test.DaoFactory;
 
@@ -15,10 +14,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @DaoFactory(stage = 3)
-public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, TimestampEntry> {
+public class LsmDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
 
     @Override
-    public Dao<OSXMemorySegment, TimestampEntry> createDao(Config config) throws IOException {
+    public Dao<MemorySegment, TimestampEntry> createDao(Config config) throws IOException {
         final Path path = config.basePath();
         if (Files.notExists(path)) {
             Files.createDirectory(path);
@@ -28,25 +27,25 @@ public class LsmDaoFactory implements DaoFactory.Factory<OSXMemorySegment, Times
     }
 
     @Override
-    public String toString(OSXMemorySegment data) {
+    public String toString(MemorySegment data) {
         if (data == null) {
             return null;
         }
 
-        return StandardCharsets.UTF_8.decode(data.getMemorySegment().asByteBuffer()).toString();
+        return StandardCharsets.UTF_8.decode(data.asByteBuffer()).toString();
     }
 
     @Override
-    public OSXMemorySegment fromString(String data) {
+    public MemorySegment fromString(String data) {
         if (data == null) {
             return null;
         }
 
-        return new OSXMemorySegment(MemorySegment.ofArray(data.getBytes(StandardCharsets.UTF_8)));
+        return MemorySegment.ofArray(data.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
-    public TimestampEntry fromBaseEntry(Entry<OSXMemorySegment> baseEntry) {
+    public TimestampEntry fromBaseEntry(Entry<MemorySegment> baseEntry) {
         return new TimestampEntry(baseEntry);
     }
 }

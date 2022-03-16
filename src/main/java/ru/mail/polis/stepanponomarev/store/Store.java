@@ -1,6 +1,6 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -27,7 +26,7 @@ public final class Store implements Closeable {
     public Store(Path path, Iterator<TimestampEntry> initData) throws IOException {
         this.path = path;
 
-        final SortedMap<OSXMemorySegment, TimestampEntry> memTable = new ConcurrentSkipListMap<>();
+        final SortedMap<MemorySegment, TimestampEntry> memTable = Utils.createMap();
         long initSizeBytes = 0;
         while (initData.hasNext()) {
             final TimestampEntry entry = initData.next();
@@ -62,7 +61,11 @@ public final class Store implements Closeable {
         sizeBytes.addAndGet(-sizeBytesBeforeFlush);
     }
 
-    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
+    public TimestampEntry get(MemorySegment key) {
+        return atomicStore.get(key);
+    }
+
+    public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) {
         return atomicStore.get(from, to);
     }
 

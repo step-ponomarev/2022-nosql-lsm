@@ -2,7 +2,6 @@ package ru.mail.polis.stepanponomarev.sstable;
 
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
@@ -103,7 +102,7 @@ public final class SSTable implements Closeable {
         tableMemorySegment.scope().close();
     }
 
-    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
+    public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) {
         final long size = tableMemorySegment.byteSize();
         if (size == 0) {
             return Collections.emptyIterator();
