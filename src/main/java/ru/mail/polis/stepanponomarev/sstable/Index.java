@@ -5,12 +5,13 @@ import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-final class Index {
+final class Index implements Closeable {
     private static final String FILE_NAME = "ss.index";
 
     private final MemorySegment tableMemorySegment;
@@ -73,6 +74,11 @@ final class Index {
         }
 
         memorySegment.force();
+    }
+
+    @Override
+    public void close() throws IOException {
+        indexMemorySegment.scope().close();
     }
 
     public long getKeyPosition(OSXMemorySegment key) {

@@ -6,6 +6,7 @@ import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.Entry;
 import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -13,7 +14,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 
-public final class SSTable {
+public final class SSTable implements Closeable {
     public static final int TOMBSTONE_TAG = -1;
     private static final String FILE_NAME = "ss.data";
 
@@ -74,46 +75,54 @@ public final class SSTable {
             long fileSize,
             int dataAmount
     ) throws IOException {
-        MemorySegment memorySegment = MemorySegment.mapFile(
-                file,
-                0,
-                fileSize,
-                FileChannel.MapMode.READ_WRITE,
-                ResourceScope.newSharedScope()
-        );
+        try (ResourceScope scope = ResourceScope.newSharedScope()) {
+            MemorySegment memorySegment = MemorySegment.mapFile(
+                    file,
+                    0,
+                    fileSize,
+                    FileChannel.MapMode.READ_WRITE,
+                    scope
+            );
 
-        int i = 0;
-        final long [] positions = new long[dataAmount];
+            int i = 0;
+            final long[] positions = new long[dataAmount];
 
-        long currentOffset = 0;
-        while (data.hasNext()) {
-            positions[i++] = currentOffset;
+            long currentOffset = 0;
+            while (data.hasNext()) {
+                positions[i++] = currentOffset;
 
-            final Entry<OSXMemorySegment> entry = data.next();
-            final MemorySegment key = entry.key().getMemorySegment();
-            final long keySize = key.byteSize();
-            MemoryAccess.setLongAtOffset(memorySegment, currentOffset, keySize);
-            currentOffset += Long.BYTES;
-
-            memorySegment.asSlice(currentOffset, keySize).copyFrom(key);
-            currentOffset += keySize;
-
-            final OSXMemorySegment value = entry.value();
-            if (value == null) {
-                MemoryAccess.setLongAtOffset(memorySegment, currentOffset, TOMBSTONE_TAG);
+                final Entry<OSXMemorySegment> entry = data.next();
+                final MemorySegment key = entry.key().getMemorySegment();
+                final long keySize = key.byteSize();
+                MemoryAccess.setLongAtOffset(memorySegment, currentOffset, keySize);
                 currentOffset += Long.BYTES;
-                continue;
+
+                memorySegment.asSlice(currentOffset, keySize).copyFrom(key);
+                currentOffset += keySize;
+
+                final OSXMemorySegment value = entry.value();
+                if (value == null) {
+                    MemoryAccess.setLongAtOffset(memorySegment, currentOffset, TOMBSTONE_TAG);
+                    currentOffset += Long.BYTES;
+                    continue;
+                }
+
+                final long valueSize = value.getMemorySegment().byteSize();
+                MemoryAccess.setLongAtOffset(memorySegment, currentOffset, valueSize);
+                currentOffset += Long.BYTES;
+
+                memorySegment.asSlice(currentOffset, valueSize).copyFrom(value.getMemorySegment());
+                currentOffset += valueSize;
             }
 
-            final long valueSize = value.getMemorySegment().byteSize();
-            MemoryAccess.setLongAtOffset(memorySegment, currentOffset, valueSize);
-            currentOffset += Long.BYTES;
-
-            memorySegment.asSlice(currentOffset, valueSize).copyFrom(value.getMemorySegment());
-            currentOffset += valueSize;
+            return positions;
         }
+    }
 
-        return positions;
+    @Override
+    public void close() throws IOException {
+        index.close();
+        tableMemorySegment.scope().close();
     }
 
     public Iterator<Entry<OSXMemorySegment>> get(OSXMemorySegment from, OSXMemorySegment to) throws IOException {

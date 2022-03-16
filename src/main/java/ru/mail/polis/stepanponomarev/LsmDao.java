@@ -43,6 +43,14 @@ public class LsmDao implements Dao<OSXMemorySegment, Entry<OSXMemorySegment>> {
     }
 
     @Override
+    public void close() throws IOException {
+        flush();
+        for (SSTable table : store) {
+            table.close();
+        }
+    }
+
+    @Override
     public void flush() throws IOException {
         final Path dir = path.resolve(SSTABLE_DIR_NAME + store.size());
         if (Files.notExists(dir)) {
