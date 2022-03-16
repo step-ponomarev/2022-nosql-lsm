@@ -1,5 +1,12 @@
 package ru.mail.polis.stepanponomarev.log;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -8,13 +15,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.logging.Logger;
-
-import jdk.incubator.foreign.MemoryAccess;
-import jdk.incubator.foreign.MemorySegment;
-import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
 
 final class CommitLog implements Closeable {
     private static final Logger log = Logger.getLogger(CommitLog.class.getSimpleName());
