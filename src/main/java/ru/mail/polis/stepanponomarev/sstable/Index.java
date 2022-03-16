@@ -103,7 +103,7 @@ final class Index implements Closeable {
         final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
         final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
 
-        if (compareResult == 0 ) {
+        if (compareResult == 0) {
             return keyPosition;
         }
 
@@ -114,7 +114,9 @@ final class Index implements Closeable {
         if (left == right) {
             final long lastIndexOrderPosition = indexMemorySegment.byteSize() / Long.BYTES - 1;
 
-            return mid == lastIndexOrderPosition ? keyPosition : MemoryAccess.getLongAtIndex(indexMemorySegment, mid + 1);
+            return mid == lastIndexOrderPosition
+                    ? keyPosition
+                    : MemoryAccess.getLongAtIndex(indexMemorySegment, mid + 1);
         }
 
         if (compareResult < 0) {
