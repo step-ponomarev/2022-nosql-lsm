@@ -1,12 +1,6 @@
 package ru.mail.polis.stepanponomarev.log;
 
-import jdk.incubator.foreign.MemoryAccess;
-import jdk.incubator.foreign.MemorySegment;
-import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
-
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -15,7 +9,14 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.logging.Logger;
 
-final class CommitLog {
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
+
+final class CommitLog implements Closeable {
     private static final Logger log = Logger.getLogger(CommitLog.class.getSimpleName());
 
     private static final String FILE_NAME = "commit.log";
@@ -40,6 +41,11 @@ final class CommitLog {
         if (newFile) {
             MemoryAccess.setLong(logMemorySegment, START_OFFSET);
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        logMemorySegment.scope().close();
     }
 
     public synchronized Iterator<TimestampEntry> load() {
@@ -71,6 +77,7 @@ final class CommitLog {
         final long currentSizeBytes = logMemorySegment.byteSize();
 
         MemoryAccess.setLong(logMemorySegment, START_OFFSET);
+        logMemorySegment.scope().close();
         logMemorySegment = createSegment((long) (initSize * SIZE_BUFFER_FACTOR));
 
         log.info("CLEAN | CURRENT_SIZE_IN_BYTES: %d".formatted(currentSizeBytes));

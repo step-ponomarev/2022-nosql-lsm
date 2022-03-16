@@ -5,6 +5,7 @@ import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,7 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
-public final class Store {
+public final class Store implements Closeable {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
@@ -36,6 +37,11 @@ public final class Store {
 
         this.sizeBytes = new AtomicLong(initSizeBytes);
         this.atomicStore = new AtomicStore(wakeUpSSTables(path), memTable);
+    }
+
+    @Override
+    public void close() throws IOException {
+        atomicStore.close();
     }
 
     public void flush(long timestamp) throws IOException {

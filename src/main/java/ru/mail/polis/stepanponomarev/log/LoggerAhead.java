@@ -84,6 +84,8 @@ public final class LoggerAhead implements Closeable {
             if (Thread.interrupted()) {
                 throw new IOException("Very strange unexpected exception", e);
             }
+        } finally {
+            commitLog.close();
         }
 
         log.info("COMMIT LOGGER IS STOPPED");

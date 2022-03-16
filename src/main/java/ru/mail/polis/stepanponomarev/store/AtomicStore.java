@@ -1,11 +1,7 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
-import ru.mail.polis.stepanponomarev.sstable.SSTable;
-
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,7 +12,13 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
 
-final class AtomicStore {
+import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
+
+final class AtomicStore implements Closeable {
     private final List<SSTable> ssTables;
     private final Map<Long, FlushData> flushData;
     private final SortedMap<OSXMemorySegment, TimestampEntry> memTable;
@@ -89,6 +91,13 @@ final class AtomicStore {
         newSSTables.add(newSSTable);
 
         return new AtomicStore(newSSTables, flushSnapshots, new ConcurrentSkipListMap<>());
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (SSTable ssTable : ssTables) {
+            ssTable.close();
+        }
     }
 
     public SortedMap<OSXMemorySegment, TimestampEntry> getMemTable() {

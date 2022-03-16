@@ -46,8 +46,9 @@ public class LSMDao implements Dao<OSXMemorySegment, TimestampEntry> {
 
     @Override
     public void close() throws IOException {
-        loggerAhead.close();
         flush();
+        store.close();
+        loggerAhead.close();
     }
 
     @Override

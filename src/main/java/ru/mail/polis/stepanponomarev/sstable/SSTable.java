@@ -7,6 +7,7 @@ import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -14,7 +15,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 
-public final class SSTable {
+public final class SSTable implements Closeable {
     private static final String FILE_NAME = "sstable.data";
 
     private final Index index;
@@ -94,6 +95,12 @@ public final class SSTable {
         }
 
         return positions;
+    }
+
+    @Override
+    public void close() throws IOException {
+        index.close();
+        tableMemorySegment.scope().close();
     }
 
     public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
