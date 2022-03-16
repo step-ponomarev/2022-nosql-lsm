@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.util.Iterator;
 
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
-    private static final long MAX_MEM_TABLE_SIZE_BYTES = (long) 2.5E8;
+    private static final long MAX_MEMTABLE_SIZE_BYTES = (long) 2.5E8;
 
     private final Store store;
     private final LoggerAhead loggerAhead;
@@ -22,7 +22,7 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
             throw new IllegalArgumentException("Path: " + path + "is not exist");
         }
 
-        loggerAhead = new LoggerAhead(path, MAX_MEM_TABLE_SIZE_BYTES);
+        loggerAhead = new LoggerAhead(path, MAX_MEMTABLE_SIZE_BYTES);
         store = new Store(path, loggerAhead.load());
     }
 
@@ -41,7 +41,7 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
         loggerAhead.log(entry);
         store.put(entry);
 
-        if (store.getSizeBytes() >= MAX_MEM_TABLE_SIZE_BYTES) {
+        if (store.getSizeBytes() >= MAX_MEMTABLE_SIZE_BYTES) {
             try {
                 flush();
             } catch (IOException e) {
