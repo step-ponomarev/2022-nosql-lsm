@@ -4,24 +4,54 @@ import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public final class Utils {
     public static final int TOMBSTONE_TAG = -1;
 
+    public static final Comparator<MemorySegment> COMPARATOR = (MemorySegment m1, MemorySegment m2) -> {
+        final long mismatch = m1.mismatch(m2);
+        if (mismatch == -1) {
+            return 0;
+        }
+
+        if (mismatch == m1.byteSize()) {
+            return -1;
+        }
+
+        if (mismatch == m2.byteSize()) {
+            return 1;
+        }
+
+        return Byte.compare(
+                MemoryAccess.getByteAtOffset(m1, mismatch),
+                MemoryAccess.getByteAtOffset(m2, mismatch)
+        );
+    };
+
     private Utils() {
     }
 
-    public static long sizeOf(TimestampEntry entry) {
-        final OSXMemorySegment key = entry.key();
-        final OSXMemorySegment value = entry.value();
+    public static SortedMap<MemorySegment, TimestampEntry> createMap() {
+        return new ConcurrentSkipListMap<>(COMPARATOR);
+    }
 
-        return key.size() + (value == null ? 0 : value.size()) + Long.BYTES;
+    public static int compare(MemorySegment segment, MemorySegment segment2) {
+        return COMPARATOR.compare(segment, segment2);
+    }
+
+    public static long sizeOf(TimestampEntry entry) {
+        final MemorySegment key = entry.key();
+        final MemorySegment value = entry.value();
+
+        return key.byteSize() + (value == null ? 0 : value.byteSize()) + Long.BYTES;
     }
 
     public static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
-        final MemorySegment key = entry.key().getMemorySegment();
+        final MemorySegment key = entry.key();
         final long keySize = key.byteSize();
 
         long writeOffset = offset;
@@ -34,26 +64,26 @@ public final class Utils {
         MemoryAccess.setLongAtOffset(memorySegment, writeOffset, entry.getTimestamp());
         writeOffset += Long.BYTES;
 
-        final OSXMemorySegment value = entry.value();
+        final MemorySegment value = entry.value();
         if (value == null) {
             MemoryAccess.setLongAtOffset(memorySegment, writeOffset, TOMBSTONE_TAG);
             return writeOffset + Long.BYTES;
         }
 
-        final long valueSize = value.size();
+        final long valueSize = value.byteSize();
         MemoryAccess.setLongAtOffset(memorySegment, writeOffset, valueSize);
         writeOffset += Long.BYTES;
 
-        memorySegment.asSlice(writeOffset, valueSize).copyFrom(value.getMemorySegment());
+        memorySegment.asSlice(writeOffset, valueSize).copyFrom(value);
         writeOffset += valueSize;
 
         return writeOffset;
     }
 
     public static Iterator<TimestampEntry> slice(
-            SortedMap<OSXMemorySegment, TimestampEntry> store,
-            OSXMemorySegment from,
-            OSXMemorySegment to
+            SortedMap<MemorySegment, TimestampEntry> store,
+            MemorySegment from,
+            MemorySegment to
     ) {
         if (store == null || store.isEmpty()) {
             return Collections.emptyIterator();

@@ -1,6 +1,6 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
@@ -21,16 +21,16 @@ import java.util.stream.Collectors;
 final class AtomicStore implements Closeable {
     private final List<SSTable> ssTables;
     private final Map<Long, FlushData> flushData;
-    private final SortedMap<OSXMemorySegment, TimestampEntry> memTable;
+    private final SortedMap<MemorySegment, TimestampEntry> memTable;
 
-    public AtomicStore(List<SSTable> ssTables, SortedMap<OSXMemorySegment, TimestampEntry> memTable) {
+    public AtomicStore(List<SSTable> ssTables, SortedMap<MemorySegment, TimestampEntry> memTable) {
         this(ssTables, Collections.emptyMap(), memTable);
     }
 
     private AtomicStore(
             List<SSTable> ssTables,
             Map<Long, FlushData> flushData,
-            SortedMap<OSXMemorySegment, TimestampEntry> memTable
+            SortedMap<MemorySegment, TimestampEntry> memTable
     ) {
         this.ssTables = ssTables;
         this.flushData = flushData;
@@ -51,7 +51,7 @@ final class AtomicStore implements Closeable {
         }
 
         long size = 0;
-        final ConcurrentSkipListMap<OSXMemorySegment, TimestampEntry> flushingData = new ConcurrentSkipListMap<>();
+        final SortedMap<MemorySegment, TimestampEntry> flushingData = Utils.createMap();
         for (TimestampEntry entry : flushStore.memTable.values()) {
             size += Utils.sizeOf(entry);
             flushingData.put(entry.key(), entry);
@@ -68,8 +68,8 @@ final class AtomicStore implements Closeable {
         );
     }
 
-    private static SortedMap<OSXMemorySegment, TimestampEntry> filterByTimestamp(
-            SortedMap<OSXMemorySegment, TimestampEntry> source,
+    private static SortedMap<MemorySegment, TimestampEntry> filterByTimestamp(
+            SortedMap<MemorySegment, TimestampEntry> source,
             long timestamp
     ) {
         return source.entrySet()
@@ -79,7 +79,7 @@ final class AtomicStore implements Closeable {
                         Map.Entry::getKey,
                         Map.Entry::getValue,
                         (o1, o2) -> o1,
-                        ConcurrentSkipListMap<OSXMemorySegment, TimestampEntry>::new)
+                        Utils::createMap)
                 );
     }
 
@@ -90,7 +90,7 @@ final class AtomicStore implements Closeable {
         List<SSTable> newSSTables = new ArrayList<>(flushStore.ssTables);
         newSSTables.add(newSSTable);
 
-        return new AtomicStore(newSSTables, flushSnapshots, new ConcurrentSkipListMap<>());
+        return new AtomicStore(newSSTables, flushSnapshots, Utils.createMap());
     }
 
     @Override
@@ -100,7 +100,7 @@ final class AtomicStore implements Closeable {
         }
     }
 
-    public SortedMap<OSXMemorySegment, TimestampEntry> getMemTable() {
+    public SortedMap<MemorySegment, TimestampEntry> getMemTable() {
         return memTable;
     }
 
@@ -108,7 +108,24 @@ final class AtomicStore implements Closeable {
         return flushData.get(timestamp);
     }
 
-    public Iterator<TimestampEntry> get(OSXMemorySegment from, OSXMemorySegment to) {
+    public TimestampEntry get(MemorySegment key) {
+        final TimestampEntry memoryEntry = this.memTable.get(key);
+        if (memoryEntry != null) {
+            return memoryEntry;
+        }
+
+        final Iterator<TimestampEntry> data = get(key, null);
+        while (data.hasNext()) {
+            final TimestampEntry entry = data.next();
+            if (Utils.compare(entry.key(), key) == 0) {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) {
         final List<Iterator<TimestampEntry>> data = new ArrayList<>(ssTables.size() + flushData.size() + 1);
         for (SSTable ssTable : ssTables) {
             data.add(ssTable.get(from, to));
@@ -120,6 +137,6 @@ final class AtomicStore implements Closeable {
 
         data.add(Utils.slice(memTable, from, to));
 
-        return MergedIterator.instanceOf(data);
+        return MergedIterator.instanceOf(data, Utils.COMPARATOR);
     }
 }

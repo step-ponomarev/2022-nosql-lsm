@@ -3,26 +3,31 @@ package ru.mail.polis.stepanponomarev.iterator;
 import ru.mail.polis.Entry;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public final class MergedIterator<T extends Comparable<T>, E extends Entry<T>> implements Iterator<E> {
+public final class MergedIterator<T, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> firstIter;
     private final Iterator<E> secondIter;
+    private final Comparator<T> comparator;
 
     private E firstRecord;
     private E secondRecord;
 
-    private MergedIterator(final Iterator<E> left, final Iterator<E> right) {
+    private MergedIterator(final Iterator<E> left, final Iterator<E> right, Comparator<T> comparator) {
         firstIter = right;
         secondIter = left;
+        this.comparator = comparator;
 
         firstRecord = getElement(firstIter);
         secondRecord = getElement(secondIter);
     }
 
-    public static <T extends Comparable<T>, E extends Entry<T>> Iterator<E> instanceOf(List<Iterator<E>> iterators) {
+    public static <T, E extends Entry<T>> Iterator<E> instanceOf(List<Iterator<E>> iterators,
+                                                                 Comparator<T> comparator
+    ) {
         if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
@@ -33,8 +38,9 @@ public final class MergedIterator<T extends Comparable<T>, E extends Entry<T>> i
         }
 
         return new MergedIterator<>(
-                instanceOf(iterators.subList(0, size / 2)),
-                instanceOf(iterators.subList(size / 2, size))
+                instanceOf(iterators.subList(0, size / 2), comparator),
+                instanceOf(iterators.subList(size / 2, size), comparator),
+                comparator
         );
     }
 
@@ -79,7 +85,7 @@ public final class MergedIterator<T extends Comparable<T>, E extends Entry<T>> i
             return -1;
         }
 
-        return r1.key().compareTo(r2.key());
+        return comparator.compare(r1.key(), r2.key());
     }
 
     private E getElement(final Iterator<E> iter) {

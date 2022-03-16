@@ -1,25 +1,26 @@
 package ru.mail.polis.stepanponomarev;
 
+import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
 import java.util.Objects;
 
-public final class TimestampEntry implements Entry<OSXMemorySegment> {
-    private final Entry<OSXMemorySegment> entry;
+public final class TimestampEntry implements Entry<MemorySegment> {
+    private final Entry<MemorySegment> entry;
     private final long timestamp;
 
-    public TimestampEntry(Entry<OSXMemorySegment> entry) {
+    public TimestampEntry(Entry<MemorySegment> entry) {
         this.entry = entry;
         this.timestamp = System.nanoTime();
     }
 
-    public TimestampEntry(Entry<OSXMemorySegment> entry, long timestamp) {
+    public TimestampEntry(Entry<MemorySegment> entry, long timestamp) {
         this.entry = entry;
         this.timestamp = timestamp;
     }
 
-    public TimestampEntry(OSXMemorySegment key, OSXMemorySegment value, long timestamp) {
+    public TimestampEntry(MemorySegment key, MemorySegment value, long timestamp) {
         this.entry = new BaseEntry<>(key, value);
         this.timestamp = timestamp;
     }
@@ -29,12 +30,12 @@ public final class TimestampEntry implements Entry<OSXMemorySegment> {
     }
 
     @Override
-    public OSXMemorySegment key() {
+    public MemorySegment key() {
         return entry.key();
     }
 
     @Override
-    public OSXMemorySegment value() {
+    public MemorySegment value() {
         return entry.value();
     }
 

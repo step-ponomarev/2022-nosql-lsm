@@ -2,7 +2,6 @@ package ru.mail.polis.stepanponomarev.iterator;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
 
@@ -42,12 +41,12 @@ public final class MappedIterator implements Iterator<TimestampEntry> {
         position += Long.BYTES;
 
         if (valueSize == Utils.TOMBSTONE_TAG) {
-            return new TimestampEntry(new OSXMemorySegment(key), null, timestamp);
+            return new TimestampEntry(key, null, timestamp);
         }
 
         MemorySegment value = memorySegment.asSlice(position, valueSize);
         position += valueSize;
 
-        return new TimestampEntry(new OSXMemorySegment(key), new OSXMemorySegment(value), timestamp);
+        return new TimestampEntry(key, value, timestamp);
     }
 }

@@ -3,7 +3,7 @@ package ru.mail.polis.stepanponomarev.sstable;
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.OSXMemorySegment;
+import ru.mail.polis.stepanponomarev.Utils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,29 +79,29 @@ final class Index implements Closeable {
         }
     }
 
-    public long findKeyPositionOrNear(OSXMemorySegment key) {
+    public long findKeyPositionOrNear(MemorySegment key) {
         final long firstIndexOrderPosition = 0;
-        final OSXMemorySegment minKey = getKeyByIndexOrderPosition(firstIndexOrderPosition);
-        if (key.compareTo(minKey) < 0) {
+        final MemorySegment minKey = getKeyByIndexOrderPosition(firstIndexOrderPosition);
+        if (Utils.compare(key, minKey) < 0) {
             return 0;
         }
 
         final long lastIndexOrderPosition = indexMemorySegment.byteSize() / Long.BYTES - 1;
-        final OSXMemorySegment maxKey = getKeyByIndexOrderPosition(lastIndexOrderPosition);
-        if (key.compareTo(maxKey) > 0) {
+        final MemorySegment maxKey = getKeyByIndexOrderPosition(lastIndexOrderPosition);
+        if (Utils.compare(key, maxKey) > 0) {
             return tableMemorySegment.byteSize();
         }
 
         return findKeyPositionOrNear(key, firstIndexOrderPosition, lastIndexOrderPosition);
     }
 
-    private long findKeyPositionOrNear(OSXMemorySegment key, long left, long right) {
+    private long findKeyPositionOrNear(MemorySegment key, long left, long right) {
         final long mid = left + (right - left) / 2;
         final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
 
         final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
         final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
-        final int compareResult = key.compareTo(new OSXMemorySegment(foundKey));
+        final int compareResult = Utils.compare(key, foundKey);
 
         if (compareResult == 0) {
             return keyPosition;
@@ -126,10 +126,10 @@ final class Index implements Closeable {
         return findKeyPositionOrNear(key, mid + 1, right);
     }
 
-    private OSXMemorySegment getKeyByIndexOrderPosition(long index) {
+    private MemorySegment getKeyByIndexOrderPosition(long index) {
         final long minKeyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, index);
         long size = MemoryAccess.getLongAtOffset(tableMemorySegment, minKeyPosition);
 
-        return new OSXMemorySegment(tableMemorySegment.asSlice(minKeyPosition + Long.BYTES, size));
+        return tableMemorySegment.asSlice(minKeyPosition + Long.BYTES, size);
     }
 }
