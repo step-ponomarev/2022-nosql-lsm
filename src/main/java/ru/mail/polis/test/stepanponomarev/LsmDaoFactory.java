@@ -45,7 +45,7 @@ public class LsmDaoFactory implements DaoFactory.Factory<MemorySegment, Timestam
     }
 
     @Override
-    public TimestampEntry fromBaseEntry(Entry<MemorySegment> baseEntry) {
-        return new TimestampEntry(baseEntry);
+    public TimestampEntry fromBaseEntry(Entry<MemorySegment> entry) {
+        return new TimestampEntry(entry);
     }
 }
