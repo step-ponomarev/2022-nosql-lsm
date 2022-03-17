@@ -3,7 +3,6 @@ package ru.mail.polis.stepanponomarev.store;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.Closeable;
@@ -137,6 +136,6 @@ final class AtomicStore implements Closeable {
 
         data.add(Utils.slice(memTable, from, to));
 
-        return MergedIterator.instanceOf(data, Utils.COMPARATOR);
+        return Utils.merge(data);
     }
 }

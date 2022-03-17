@@ -2,17 +2,15 @@ package ru.mail.polis.stepanponomarev;
 
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public final class Utils {
     public static final int TOMBSTONE_TAG = -1;
 
-    public static final Comparator<MemorySegment> COMPARATOR = (MemorySegment m1, MemorySegment m2) -> {
+    private static final Comparator<MemorySegment> COMPARATOR = (MemorySegment m1, MemorySegment m2) -> {
         final long mismatch = m1.mismatch(m2);
         if (mismatch == -1) {
             return 0;
@@ -41,6 +39,10 @@ public final class Utils {
 
     public static int compare(MemorySegment segment, MemorySegment segment2) {
         return COMPARATOR.compare(segment, segment2);
+    }
+
+    public static Iterator<TimestampEntry> merge(List<Iterator<TimestampEntry>> iterators) {
+        return MergedIterator.instanceOf(iterators, Utils.COMPARATOR);
     }
 
     public static long sizeOf(TimestampEntry entry) {

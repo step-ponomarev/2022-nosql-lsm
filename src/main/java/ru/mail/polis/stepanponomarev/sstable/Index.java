@@ -79,7 +79,7 @@ final class Index implements Closeable {
         }
     }
 
-    public long findKeyPositionOrNear(MemorySegment key) {
+    public long findKeyPosition(MemorySegment key) {
         final long firstIndexOrderPosition = 0;
         final MemorySegment minKey = getKeyByIndexOrderPosition(firstIndexOrderPosition);
         if (Utils.compare(key, minKey) < 0) {
@@ -92,10 +92,10 @@ final class Index implements Closeable {
             return tableMemorySegment.byteSize();
         }
 
-        return findKeyPositionOrNear(key, firstIndexOrderPosition, lastIndexOrderPosition);
+        return findKeyPosition(key, firstIndexOrderPosition, lastIndexOrderPosition);
     }
 
-    private long findKeyPositionOrNear(MemorySegment key, long left, long right) {
+    private long findKeyPosition(MemorySegment key, long left, long right) {
         final long mid = left + (right - left) / 2;
         final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
 
@@ -120,10 +120,10 @@ final class Index implements Closeable {
         }
 
         if (compareResult < 0) {
-            return findKeyPositionOrNear(key, left, mid - 1);
+            return findKeyPosition(key, left, mid - 1);
         }
 
-        return findKeyPositionOrNear(key, mid + 1, right);
+        return findKeyPosition(key, mid + 1, right);
     }
 
     private MemorySegment getKeyByIndexOrderPosition(long index) {

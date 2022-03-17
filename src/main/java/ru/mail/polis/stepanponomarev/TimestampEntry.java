@@ -4,8 +4,6 @@ import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
-import java.util.Objects;
-
 public final class TimestampEntry implements Entry<MemorySegment> {
     private final Entry<MemorySegment> entry;
     private final long timestamp;
@@ -37,24 +35,5 @@ public final class TimestampEntry implements Entry<MemorySegment> {
     @Override
     public MemorySegment value() {
         return entry.value();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (o == null || getClass() != o.getClass() || this.hashCode() != o.hashCode()) {
-            return false;
-        }
-
-        TimestampEntry entry1 = (TimestampEntry) o;
-        return timestamp == entry1.timestamp && Objects.equals(entry, entry1.entry);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(entry, timestamp);
     }
 }

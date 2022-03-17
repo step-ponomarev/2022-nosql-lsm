@@ -108,8 +108,8 @@ public final class SSTable implements Closeable {
             return Collections.emptyIterator();
         }
 
-        final long fromPosition = from == null ? 0 : index.findKeyPositionOrNear(from);
-        final long toPosition = to == null ? size : index.findKeyPositionOrNear(to);
+        final long fromPosition = from == null ? 0 : index.findKeyPosition(from);
+        final long toPosition = to == null ? size : index.findKeyPosition(to);
         if (fromPosition == toPosition) {
             return Collections.emptyIterator();
         }

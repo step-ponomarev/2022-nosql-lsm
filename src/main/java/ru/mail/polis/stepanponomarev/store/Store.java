@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 public final class Store implements Closeable {
@@ -21,7 +22,7 @@ public final class Store implements Closeable {
 
     private final Path path;
     private final AtomicLong sizeBytes;
-    private volatile AtomicStore atomicStore;
+    private final AtomicReference<AtomicStore> atomicStore;
 
     public Store(Path path, Iterator<TimestampEntry> data) throws IOException {
         this.path = path;
@@ -35,19 +36,19 @@ public final class Store implements Closeable {
         }
 
         this.sizeBytes = new AtomicLong(initSizeBytes);
-        this.atomicStore = new AtomicStore(wakeUpSSTables(path), memTable);
+        this.atomicStore = new AtomicReference<>(new AtomicStore(wakeUpSSTables(path), memTable));
     }
 
     @Override
     public void close() throws IOException {
-        atomicStore.close();
+        atomicStore.get().close();
     }
 
     public void flush(long timestamp) throws IOException {
         final long sizeBytesBeforeFlush = sizeBytes.get();
 
-        atomicStore = AtomicStore.prepareToFlush(atomicStore, timestamp);
-        final FlushData flushData = atomicStore.getFlushData(timestamp);
+        atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get(), timestamp));
+        final FlushData flushData = atomicStore.get().getFlushData(timestamp);
         if (flushData == null) {
             return;
         }
@@ -56,21 +57,21 @@ public final class Store implements Closeable {
         Files.createDirectory(sstablePath);
 
         SSTable newSSTable = SSTable.createInstance(sstablePath, flushData.get(), flushData.sizeBytes, flushData.count);
-        atomicStore = AtomicStore.afterFlush(atomicStore, newSSTable, timestamp);
+        atomicStore.set(AtomicStore.afterFlush(atomicStore.get(), newSSTable, timestamp));
 
         sizeBytes.addAndGet(-sizeBytesBeforeFlush);
     }
 
     public TimestampEntry get(MemorySegment key) {
-        return atomicStore.get(key);
+        return atomicStore.get().get(key);
     }
 
     public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) {
-        return atomicStore.get(from, to);
+        return atomicStore.get().get(from, to);
     }
 
     public void put(TimestampEntry entry) {
-        atomicStore.getMemTable().put(entry.key(), entry);
+        atomicStore.get().getMemTable().put(entry.key(), entry);
         sizeBytes.addAndGet(Utils.sizeOf(entry));
     }
 
