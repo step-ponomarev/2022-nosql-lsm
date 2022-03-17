@@ -23,40 +23,37 @@ public final class LoggerAhead implements Closeable {
     private final ExecutorService executorService;
     private final BlockingQueue<TimestampEntry> entryQueue;
 
-    private final class AsyncLogger implements Runnable {
-        @Override
-        public void run() {
-            while (true) {
-                try {
-                    final TimestampEntry timedLog = entryQueue.take();
-                    final boolean stopped = timedLog.equals(CLOSE_SIGNAL);
-                    if (stopped && entryQueue.isEmpty()) {
-                        break;
-                    }
-
-                    if (stopped) {
-                        entryQueue.put(CLOSE_SIGNAL);
-                    }
-
-                    if (!stopped) {
-                        commitLog.log(timedLog);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
-    }
-
     public LoggerAhead(Path path, long size) throws IOException {
         this.commitLog = new CommitLog(path, size);
         this.entryQueue = new LinkedBlockingQueue<>();
 
         executorService = Executors.newSingleThreadExecutor();
-        executorService.execute(AsyncLogger::new);
+        executorService.execute(this::execute);
         executorService.shutdown();
+    }
+
+    private void execute() {
+        while (true) {
+            try {
+                final TimestampEntry timedLog = entryQueue.take();
+                final boolean stopped = timedLog.equals(CLOSE_SIGNAL);
+                if (stopped && entryQueue.isEmpty()) {
+                    break;
+                }
+
+                if (stopped) {
+                    entryQueue.put(CLOSE_SIGNAL);
+                }
+
+                if (!stopped) {
+                    commitLog.log(timedLog);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     public void log(TimestampEntry entry) {
