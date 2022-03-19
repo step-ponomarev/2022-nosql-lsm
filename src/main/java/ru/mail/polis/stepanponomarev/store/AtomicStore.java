@@ -14,7 +14,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 final class AtomicStore implements Closeable {
     private final List<SSTable> ssTables;
@@ -22,21 +23,36 @@ final class AtomicStore implements Closeable {
     private final SortedMap<MemorySegment, TimestampEntry> memTable;
 
     public AtomicStore(List<SSTable> ssTables, SortedMap<MemorySegment, TimestampEntry> memTable) {
-        this(ssTables, Collections.emptyMap(), memTable);
+        this.ssTables = ssTables;
+        this.memTable = memTable;
+        this.flushData = Collections.emptyMap();
     }
 
     private AtomicStore(
             List<SSTable> ssTables,
-            Map<Long, FlushData> flushData,
+            Map<Long, FlushData> oldFlushedData,
+            FlushData flushedData,
             SortedMap<MemorySegment, TimestampEntry> memTable
     ) {
         this.ssTables = ssTables;
-        this.flushData = flushData;
+        this.memTable = memTable;
+        
+        final HashMap<Long, FlushData> longFlushDataHashMap = new HashMap<>(oldFlushedData);
+        longFlushDataHashMap.put(flushedData.timestamp, flushedData);
+        
+        this.flushData = Collections.unmodifiableMap(longFlushDataHashMap);
+    }
+
+    private AtomicStore(List<SSTable> ssTable, 
+                        Map<Long, FlushData> flushSnapshots, 
+                        SortedMap<MemorySegment, TimestampEntry> memTable
+    ) {
+        this.ssTables = ssTable;
+        this.flushData = flushSnapshots;
         this.memTable = memTable;
     }
 
-    //TODO: Слишком много аллокаций
-    public static AtomicStore prepareToFlush(AtomicStore flushStore, long timestamp) {
+    public static AtomicStore prepareToFlush(AtomicStore flushStore, AtomicLong sizeBytes, long timestamp) {
         if (flushStore.flushData.containsKey(timestamp)) {
             throw new IllegalStateException("Trying to flush already flushed data.");
         }
@@ -48,45 +64,19 @@ final class AtomicStore implements Closeable {
             );
         }
 
-        long size = 0;
-        final SortedMap<MemorySegment, TimestampEntry> flushingData = Utils.createMap();
-        for (TimestampEntry entry : flushStore.memTable.values()) {
-            size += Utils.sizeOf(entry);
-            flushingData.put(entry.key(), entry);
-        }
-
-        final FlushData flushData = new FlushData(flushingData, size);
-        final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
-        flushSnapshots.put(timestamp, flushData);
-
         return new AtomicStore(
-                flushStore.ssTables,
-                flushSnapshots,
-                //TODO: Косяк с теряем новые добавленные
-                filterByTimestamp(flushStore.memTable, timestamp)
+                new ArrayList<>(flushStore.ssTables),
+                new HashMap<>(flushStore.flushData),
+                new FlushData(new ConcurrentSkipListMap<>(flushStore.memTable), sizeBytes.get(), timestamp),
+                Utils.createMap()
         );
     }
-
-    private static SortedMap<MemorySegment, TimestampEntry> filterByTimestamp(
-            SortedMap<MemorySegment, TimestampEntry> source,
-            long timestamp
-    ) {
-        return source.entrySet()
-                .stream()
-                .filter(e -> e.getValue().getTimestamp() > timestamp)
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (o1, o2) -> o1,
-                        Utils::createMap)
-                );
-    }
-
+    
     public static AtomicStore afterFlush(AtomicStore flushStore, SSTable newSSTable, long timestamp) {
         final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
         flushSnapshots.remove(timestamp);
 
-        List<SSTable> newSSTables = new ArrayList<>(flushStore.ssTables);
+        final List<SSTable> newSSTables = new ArrayList<>(flushStore.ssTables);
         newSSTables.add(newSSTable);
 
         return new AtomicStore(newSSTables, flushSnapshots, Utils.createMap());

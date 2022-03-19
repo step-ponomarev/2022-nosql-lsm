@@ -12,10 +12,10 @@ final class FlushData {
     public final long sizeBytes;
     public final long timestamp;
 
-    public FlushData(SortedMap<MemorySegment, TimestampEntry> flushData, long sizeBytes) {
+    public FlushData(SortedMap<MemorySegment, TimestampEntry> flushData, long sizeBytes, long timestamp) {
         this.store = flushData;
         this.sizeBytes = sizeBytes;
-        this.timestamp = System.currentTimeMillis();
+        this.timestamp = timestamp;
     }
 
     public int getCount() {

@@ -47,7 +47,7 @@ public final class Store implements Closeable {
     public void flush(long timestamp) throws IOException {
         final long sizeBytesBeforeFlush = sizeBytes.get();
 
-        atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get(), timestamp));
+        atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get(), sizeBytes, timestamp));
         final FlushData flushData = atomicStore.get().getFlushData(timestamp);
         if (flushData == null) {
             return;
