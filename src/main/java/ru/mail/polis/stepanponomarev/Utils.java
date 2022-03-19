@@ -5,7 +5,7 @@ import jdk.incubator.foreign.MemorySegment;
 
 import java.util.Comparator;
 
-public abstract class Utils {
+public final class Utils {
     public static final Comparator<MemorySegment> COMPARATOR = (MemorySegment m1, MemorySegment m2) -> {
         final long mismatch = m1.mismatch(m2);
         if (mismatch == -1) {
