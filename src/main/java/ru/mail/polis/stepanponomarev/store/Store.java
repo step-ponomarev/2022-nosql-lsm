@@ -53,7 +53,7 @@ public final class Store implements Closeable {
             return;
         }
 
-        final Path sstablePath = path.resolve(SSTABLE_DIR_NAME + timestamp);
+        final Path sstablePath = path.resolve(SSTABLE_DIR_NAME + timestamp + System.nanoTime());
         Files.createDirectory(sstablePath);
 
         final SSTable newSSTable = SSTable.createInstance(
