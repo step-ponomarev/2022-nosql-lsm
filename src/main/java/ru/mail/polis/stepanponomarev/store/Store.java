@@ -28,14 +28,14 @@ public final class Store implements Closeable {
         this.path = path;
 
         final SortedMap<MemorySegment, TimestampEntry> memTable = Utils.createMap();
-        long sizeBytes = 0;
+        long initSyzeBytes = 0;
         while (data.hasNext()) {
             final TimestampEntry entry = data.next();
-            sizeBytes += Utils.sizeOf(entry);
+            initSyzeBytes += Utils.sizeOf(entry);
             memTable.put(entry.key(), entry);
         }
 
-        this.sizeBytes = new AtomicLong(sizeBytes);
+        this.sizeBytes = new AtomicLong(initSyzeBytes);
         this.atomicStore = new AtomicReference<>(new AtomicStore(wakeUpSSTables(path), memTable));
     }
 
