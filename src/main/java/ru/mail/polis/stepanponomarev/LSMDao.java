@@ -18,7 +18,7 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     public LSMDao(Path path) throws IOException {
         if (Files.notExists(path)) {
-            throw new IllegalArgumentException("Path: " + path + "is not exist");
+            throw new IllegalArgumentException("Path: " + path + " is not exist");
         }
         
         store = new Store(path, Collections.emptyIterator());
