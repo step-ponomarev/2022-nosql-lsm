@@ -14,7 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @DaoFactory(stage = 3)
-public class LsmDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
+public class LSMDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
 
     @Override
     public Dao<MemorySegment, TimestampEntry> createDao(Config config) throws IOException {
