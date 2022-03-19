@@ -60,7 +60,7 @@ final class Index implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         indexMemorySegment.scope().close();
     }
 
@@ -94,7 +94,7 @@ final class Index implements Closeable {
 
         return findKeyPosition(key, firstIndexOrderPosition, lastIndexOrderPosition);
     }
-
+    
     private long findKeyPosition(MemorySegment key, long left, long right) {
         final long mid = left + (right - left) / 2;
         final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);

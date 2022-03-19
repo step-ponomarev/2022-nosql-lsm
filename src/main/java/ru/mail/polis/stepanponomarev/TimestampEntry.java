@@ -14,14 +14,16 @@ public final class TimestampEntry implements Entry<MemorySegment> {
         this.timestamp = System.currentTimeMillis();
     }
 
-    public TimestampEntry(Entry<MemorySegment> entry, long timestamp) {
-        this.entry = entry;
-        this.timestamp = timestamp;
-    }
-
     public TimestampEntry(MemorySegment key, MemorySegment value, long timestamp) {
         this.entry = new BaseEntry<>(key, value);
         this.timestamp = timestamp;
+    }
+    
+    public long getSizeBytes() {
+        final MemorySegment key = entry.key();
+        final MemorySegment value = entry.value();
+
+        return key.byteSize() + (value == null ? 0 : value.byteSize()) + Long.BYTES;
     }
 
     public long getTimestamp() {

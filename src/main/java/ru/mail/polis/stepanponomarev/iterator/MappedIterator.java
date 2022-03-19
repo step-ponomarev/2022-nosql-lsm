@@ -3,7 +3,7 @@ package ru.mail.polis.stepanponomarev.iterator;
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -40,7 +40,7 @@ public final class MappedIterator implements Iterator<TimestampEntry> {
         final long valueSize = MemoryAccess.getLongAtOffset(memorySegment, position);
         position += Long.BYTES;
 
-        if (valueSize == Utils.TOMBSTONE_TAG) {
+        if (valueSize == SSTable.TOMBSTONE_TAG) {
             return new TimestampEntry(key, null, timestamp);
         }
 

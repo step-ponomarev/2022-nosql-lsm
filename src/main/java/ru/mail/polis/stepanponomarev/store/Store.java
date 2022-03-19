@@ -3,6 +3,7 @@ package ru.mail.polis.stepanponomarev.store;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.Closeable;
@@ -11,9 +12,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -29,13 +32,13 @@ public final class Store implements Closeable {
 
     public Store(Path path, Iterator<TimestampEntry> data) throws IOException {
         this.path = path;
-
+        
         this.ssTables = wakeUpSSTables(path);
-        this.memTable = Utils.createMap();
+        this.memTable = new ConcurrentSkipListMap<>(Utils.COMPARATOR);
         long initSyzeBytes = 0;
         while (data.hasNext()) {
             final TimestampEntry entry = data.next();
-            initSyzeBytes += Utils.sizeOf(entry);
+            initSyzeBytes += entry.getSizeBytes();
             this.memTable.put(entry.key(), entry);
         }
         this.sizeBytes = new AtomicLong(initSyzeBytes);
@@ -77,7 +80,7 @@ public final class Store implements Closeable {
         final Iterator<TimestampEntry> data = get(key, null);
         while (data.hasNext()) {
             final TimestampEntry entry = data.next();
-            if (Utils.compare(entry.key(), key) == 0) {
+            if (Utils.compare(key, entry.key()) == 0) {
                 return entry;
             }
         }
@@ -91,17 +94,41 @@ public final class Store implements Closeable {
             data.add(ssTable.get(from, to));
         }
 
-        data.add(Utils.slice(memTable, from, to));
+        data.add(slice(memTable, from, to));
 
-        return Utils.merge(data);
+        return MergedIterator.of(data, Utils.COMPARATOR);
+    }
+    
+    private static Iterator<TimestampEntry> slice(
+            SortedMap<MemorySegment, TimestampEntry> store,
+            MemorySegment from,
+            MemorySegment to
+    ) {
+        if (store == null || store.isEmpty()) {
+            return Collections.emptyIterator();
+        }
+
+        if (from == null && to == null) {
+            return store.values().iterator();
+        }
+
+        if (from == null) {
+            return store.headMap(to).values().iterator();
+        }
+
+        if (to == null) {
+            return store.tailMap(from).values().iterator();
+        }
+
+        return store.subMap(from, to).values().iterator();
     }
 
     public void put(TimestampEntry entry) {
         memTable.put(entry.key(), entry);
-        sizeBytes.addAndGet(Utils.sizeOf(entry));
+        sizeBytes.addAndGet(entry.getSizeBytes());
     }
 
-    private CopyOnWriteArrayList<SSTable> wakeUpSSTables(Path path) throws IOException {
+    private static CopyOnWriteArrayList<SSTable> wakeUpSSTables(Path path) throws IOException {
         try (Stream<Path> files = Files.list(path)) {
             final List<String> tableDirNames = files
                     .map(f -> f.getFileName().toString())

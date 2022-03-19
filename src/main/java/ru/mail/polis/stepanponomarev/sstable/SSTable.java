@@ -1,9 +1,9 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
+import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
 
 import java.io.Closeable;
@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Iterator;
 
 public final class SSTable implements Closeable {
+    public static final int TOMBSTONE_TAG = -1;
     private static final String FILE_NAME = "sstable.data";
 
     private final Index index;
@@ -90,14 +91,14 @@ public final class SSTable implements Closeable {
             positions[i++] = currentOffset;
 
             final TimestampEntry entry = data.next();
-            currentOffset = Utils.flush(entry, memorySegment, currentOffset);
+            currentOffset = flush(entry, memorySegment, currentOffset);
         }
 
         return positions;
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         index.close();
         tableMemorySegment.scope().close();
     }
@@ -115,5 +116,35 @@ public final class SSTable implements Closeable {
         }
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
+    }
+    
+    private static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
+        final MemorySegment key = entry.key();
+        final long keySize = key.byteSize();
+
+        long writeOffset = offset;
+        MemoryAccess.setLongAtOffset(memorySegment, writeOffset, keySize);
+        writeOffset += Long.BYTES;
+
+        memorySegment.asSlice(writeOffset, keySize).copyFrom(key);
+        writeOffset += keySize;
+
+        MemoryAccess.setLongAtOffset(memorySegment, writeOffset, entry.getTimestamp());
+        writeOffset += Long.BYTES;
+
+        final MemorySegment value = entry.value();
+        if (value == null) {
+            MemoryAccess.setLongAtOffset(memorySegment, writeOffset, TOMBSTONE_TAG);
+            return writeOffset + Long.BYTES;
+        }
+
+        final long valueSize = value.byteSize();
+        MemoryAccess.setLongAtOffset(memorySegment, writeOffset, valueSize);
+        writeOffset += Long.BYTES;
+
+        memorySegment.asSlice(writeOffset, valueSize).copyFrom(value);
+        writeOffset += valueSize;
+
+        return writeOffset;
     }
 }

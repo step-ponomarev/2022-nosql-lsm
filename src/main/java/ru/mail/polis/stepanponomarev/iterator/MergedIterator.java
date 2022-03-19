@@ -17,16 +17,16 @@ public final class MergedIterator<T, E extends Entry<T>> implements Iterator<E> 
     private E secondRecord;
 
     private MergedIterator(final Iterator<E> left, final Iterator<E> right, Comparator<T> comparator) {
-        firstIter = right;
-        secondIter = left;
+        this.firstIter = right;
+        this.secondIter = left;
         this.comparator = comparator;
 
-        firstRecord = getElement(firstIter);
-        secondRecord = getElement(secondIter);
+        this.firstRecord = getElement(firstIter);
+        this.secondRecord = getElement(secondIter);
     }
 
-    public static <T, E extends Entry<T>> Iterator<E> instanceOf(List<Iterator<E>> iterators,
-                                                                 Comparator<T> comparator
+    public static <T, E extends Entry<T>> Iterator<E> of(List<Iterator<E>> iterators,
+                                                         Comparator<T> comparator
     ) {
         if (iterators.isEmpty()) {
             return Collections.emptyIterator();
@@ -38,8 +38,8 @@ public final class MergedIterator<T, E extends Entry<T>> implements Iterator<E> 
         }
 
         return new MergedIterator<>(
-                instanceOf(iterators.subList(0, size / 2), comparator),
-                instanceOf(iterators.subList(size / 2, size), comparator),
+                of(iterators.subList(0, size / 2), comparator),
+                of(iterators.subList(size / 2, size), comparator),
                 comparator
         );
     }
