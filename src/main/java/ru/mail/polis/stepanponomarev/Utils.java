@@ -1,9 +1,9 @@
 package ru.mail.polis.stepanponomarev;
 
-import java.util.Comparator;
-
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
+
+import java.util.Comparator;
 
 public abstract class Utils {
     public static final Comparator<MemorySegment> COMPARATOR = (MemorySegment m1, MemorySegment m2) -> {
