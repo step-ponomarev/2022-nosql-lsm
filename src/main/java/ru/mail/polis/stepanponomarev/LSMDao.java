@@ -1,5 +1,9 @@
 package ru.mail.polis.stepanponomarev;
 
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.Dao;
+import ru.mail.polis.stepanponomarev.store.Store;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,10 +11,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.Dao;
-import ru.mail.polis.stepanponomarev.store.Store;
 
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     private final Store store;
