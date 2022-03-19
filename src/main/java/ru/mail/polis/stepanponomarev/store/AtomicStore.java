@@ -1,10 +1,5 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.sstable.SSTable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -14,8 +9,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
+
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 final class AtomicStore implements Closeable {
     private final List<SSTable> ssTables;
@@ -45,7 +44,7 @@ final class AtomicStore implements Closeable {
         if (flushStore.memTable.isEmpty()) {
             return new AtomicStore(
                     new ArrayList<>(flushStore.ssTables),
-                    new ConcurrentSkipListMap<>(flushStore.memTable)
+                    flushStore.memTable
             );
         }
 
@@ -56,13 +55,14 @@ final class AtomicStore implements Closeable {
             flushingData.put(entry.key(), entry);
         }
 
-        final FlushData flushData = new FlushData(flushingData, size, flushingData.size());
+        final FlushData flushData = new FlushData(flushingData, size);
         final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
         flushSnapshots.put(timestamp, flushData);
 
         return new AtomicStore(
                 flushStore.ssTables,
                 flushSnapshots,
+                //TODO: Косяк с теряем новые добавленные
                 filterByTimestamp(flushStore.memTable, timestamp)
         );
     }

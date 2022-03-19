@@ -1,10 +1,5 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.sstable.SSTable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,6 +11,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 public final class Store implements Closeable {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
@@ -56,7 +56,12 @@ public final class Store implements Closeable {
         final Path sstablePath = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(sstablePath);
 
-        SSTable newSSTable = SSTable.createInstance(sstablePath, flushData.get(), flushData.sizeBytes, flushData.count);
+        final SSTable newSSTable = SSTable.createInstance(
+                sstablePath,
+                flushData.get(),
+                flushData.sizeBytes,
+                flushData.getCount()
+        );
         atomicStore.set(AtomicStore.afterFlush(atomicStore.get(), newSSTable, timestamp));
 
         sizeBytes.addAndGet(-sizeBytesBeforeFlush);
