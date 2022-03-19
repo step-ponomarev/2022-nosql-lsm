@@ -8,78 +8,56 @@ import ru.mail.polis.stepanponomarev.sstable.SSTable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 final class AtomicStore implements Closeable {
-    private final List<SSTable> ssTables;
-    private final Map<Long, FlushData> flushData;
-    private final SortedMap<MemorySegment, TimestampEntry> memTable;
+    private static final FlushData EMPTY_FLUSH_DATA = new FlushData(Utils.createMap(), 0);
 
-    public AtomicStore(List<SSTable> ssTables, SortedMap<MemorySegment, TimestampEntry> memTable) {
+    private final List<SSTable> ssTables;
+    private final SortedMap<MemorySegment, TimestampEntry> memTable;
+    private final FlushData flushData;
+
+    public AtomicStore(
+            List<SSTable> ssTables,
+            SortedMap<MemorySegment, TimestampEntry> memTable) {
         this.ssTables = ssTables;
         this.memTable = memTable;
-        this.flushData = Collections.emptyMap();
+        this.flushData = EMPTY_FLUSH_DATA;
     }
-
+    
     private AtomicStore(
             List<SSTable> ssTables,
-            Map<Long, FlushData> oldFlushedData,
-            FlushData flushedData,
-            SortedMap<MemorySegment, TimestampEntry> memTable
+            SortedMap<MemorySegment, TimestampEntry> memTable,
+            SortedMap<MemorySegment, TimestampEntry> flushData,
+            long flushDataSizeBytes
     ) {
         this.ssTables = ssTables;
         this.memTable = memTable;
-        
-        final HashMap<Long, FlushData> longFlushDataHashMap = new HashMap<>(oldFlushedData);
-        longFlushDataHashMap.put(flushedData.timestamp, flushedData);
-        
-        this.flushData = Collections.unmodifiableMap(longFlushDataHashMap);
+        this.flushData = new FlushData(flushData, flushDataSizeBytes);
     }
 
-    private AtomicStore(List<SSTable> ssTable, 
-                        Map<Long, FlushData> flushSnapshots, 
-                        SortedMap<MemorySegment, TimestampEntry> memTable
-    ) {
-        this.ssTables = ssTable;
-        this.flushData = flushSnapshots;
-        this.memTable = memTable;
-    }
-
-    public static AtomicStore prepareToFlush(AtomicStore flushStore, AtomicLong sizeBytes, long timestamp) {
-        if (flushStore.flushData.containsKey(timestamp)) {
-            throw new IllegalStateException("Trying to flush already flushed data.");
-        }
-
+    public static AtomicStore prepareToFlush(AtomicStore flushStore, AtomicLong sizeBytes) {
         if (flushStore.memTable.isEmpty()) {
-            return new AtomicStore(
-                    new ArrayList<>(flushStore.ssTables),
-                    flushStore.memTable
-            );
+            return flushStore;
         }
 
         return new AtomicStore(
-                new ArrayList<>(flushStore.ssTables),
-                new HashMap<>(flushStore.flushData),
-                new FlushData(new ConcurrentSkipListMap<>(flushStore.memTable), sizeBytes.get(), timestamp),
-                Utils.createMap()
+                flushStore.ssTables,
+                Utils.createMap(),
+                new ConcurrentSkipListMap<>(flushStore.memTable),
+                sizeBytes.get()
         );
     }
-    
-    public static AtomicStore afterFlush(AtomicStore flushStore, SSTable newSSTable, long timestamp) {
-        final Map<Long, FlushData> flushSnapshots = new HashMap<>(flushStore.flushData);
-        flushSnapshots.remove(timestamp);
 
+    public static AtomicStore afterFlush(AtomicStore flushStore, SSTable newSSTable) {
         final List<SSTable> newSSTables = new ArrayList<>(flushStore.ssTables);
         newSSTables.add(newSSTable);
 
-        return new AtomicStore(newSSTables, flushSnapshots, Utils.createMap());
+        return new AtomicStore(newSSTables, flushStore.memTable, Utils.createMap(), 0);
     }
 
     @Override
@@ -93,8 +71,8 @@ final class AtomicStore implements Closeable {
         return memTable;
     }
 
-    public FlushData getFlushData(long timestamp) {
-        return flushData.get(timestamp);
+    public FlushData getFlushData() {
+        return flushData;
     }
 
     public TimestampEntry get(MemorySegment key) {
@@ -115,15 +93,12 @@ final class AtomicStore implements Closeable {
     }
 
     public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) {
-        final List<Iterator<TimestampEntry>> data = new ArrayList<>(ssTables.size() + flushData.size() + 1);
+        final List<Iterator<TimestampEntry>> data = new ArrayList<>(ssTables.size() + 2);
         for (SSTable ssTable : ssTables) {
             data.add(ssTable.get(from, to));
         }
 
-        for (FlushData fd : flushData.values()) {
-            data.add(fd.get(from, to));
-        }
-
+        data.add(flushData.get(from, to));
         data.add(Utils.slice(memTable, from, to));
 
         return Utils.merge(data);

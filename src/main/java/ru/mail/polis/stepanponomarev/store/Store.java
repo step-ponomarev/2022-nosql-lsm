@@ -47,9 +47,9 @@ public final class Store implements Closeable {
     public void flush(long timestamp) throws IOException {
         final long sizeBytesBeforeFlush = sizeBytes.get();
 
-        atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get(), sizeBytes, timestamp));
-        final FlushData flushData = atomicStore.get().getFlushData(timestamp);
-        if (flushData == null) {
+        atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get(), sizeBytes));
+        final FlushData flushData = atomicStore.get().getFlushData();
+        if (flushData.getCount() == 0) {
             return;
         }
 
@@ -59,10 +59,11 @@ public final class Store implements Closeable {
         final SSTable newSSTable = SSTable.createInstance(
                 sstablePath,
                 flushData.get(),
-                flushData.sizeBytes,
+                flushData.getSizeBytes(),
                 flushData.getCount()
         );
-        atomicStore.set(AtomicStore.afterFlush(atomicStore.get(), newSSTable, timestamp));
+
+        atomicStore.set(AtomicStore.afterFlush(atomicStore.get(), newSSTable));
 
         sizeBytes.addAndGet(-sizeBytesBeforeFlush);
     }
@@ -78,10 +79,6 @@ public final class Store implements Closeable {
     public void put(TimestampEntry entry) {
         atomicStore.get().getMemTable().put(entry.key(), entry);
         sizeBytes.addAndGet(Utils.sizeOf(entry));
-    }
-
-    public long getSizeBytes() {
-        return sizeBytes.get();
     }
 
     private CopyOnWriteArrayList<SSTable> wakeUpSSTables(Path path) throws IOException {
