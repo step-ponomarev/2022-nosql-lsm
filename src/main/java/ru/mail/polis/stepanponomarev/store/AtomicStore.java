@@ -1,5 +1,10 @@
 package ru.mail.polis.stepanponomarev.store;
 
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -10,11 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
-
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 final class AtomicStore implements Closeable {
     private final List<SSTable> ssTables;

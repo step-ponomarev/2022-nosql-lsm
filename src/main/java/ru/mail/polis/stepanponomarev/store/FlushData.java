@@ -1,11 +1,11 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import java.util.Iterator;
-import java.util.SortedMap;
-
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
+
+import java.util.Iterator;
+import java.util.SortedMap;
 
 final class FlushData {
     private final SortedMap<MemorySegment, TimestampEntry> store;
