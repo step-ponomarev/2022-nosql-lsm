@@ -22,7 +22,7 @@ public class TombstoneSkipIterator<T, E extends Entry<T>> implements Iterator<E>
     @Override
     public E next() {
         if (!hasNext()) {
-            throw new NoSuchElementException("No Such Element");
+            throw new NoSuchElementException("No such element");
         }
 
         final E next = currentElem;
