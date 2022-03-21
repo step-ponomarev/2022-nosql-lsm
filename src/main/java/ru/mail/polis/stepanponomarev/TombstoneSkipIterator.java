@@ -6,17 +6,17 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 public class TombstoneSkipIterator<T, E extends Entry<T>> implements Iterator<E> {
-    private final Iterator<E> delegate;
+    private final Iterator<E> wrappedIterator;
     private E current;
 
-    public TombstoneSkipIterator(Iterator<E> delegate) {
-        this.delegate = delegate;
-        this.current = getNext(delegate);
+    public TombstoneSkipIterator(Iterator<E> wrappedIterator) {
+        this.wrappedIterator = wrappedIterator;
+        this.current = getNext(wrappedIterator);
     }
 
     @Override
     public boolean hasNext() {
-        return current != null || delegate.hasNext();
+        return current != null || wrappedIterator.hasNext();
     }
 
     @Override
@@ -26,7 +26,7 @@ public class TombstoneSkipIterator<T, E extends Entry<T>> implements Iterator<E>
         }
 
         final E next = current;
-        current = getNext(delegate);
+        current = getNext(wrappedIterator);
 
         return next;
     }
