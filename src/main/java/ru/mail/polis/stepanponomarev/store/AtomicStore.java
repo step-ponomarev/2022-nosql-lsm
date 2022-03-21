@@ -10,21 +10,21 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 class AtomicStore {
     private final SortedMap<MemorySegment, TimestampEntry> memTable;
-    private final SortedMap<MemorySegment, TimestampEntry> flush;
+    private final SortedMap<MemorySegment, TimestampEntry> flushedTable;
     private final long sizeBytes;
 
     public AtomicStore(SortedMap<MemorySegment, TimestampEntry> memTable) {
         this.memTable = memTable;
-        this.flush = Collections.emptyNavigableMap();
+        this.flushedTable = Collections.emptyNavigableMap();
         this.sizeBytes = 0;
     }
 
     private AtomicStore(SortedMap<MemorySegment, TimestampEntry> memTable,
-                       SortedMap<MemorySegment, TimestampEntry> flush
+                       SortedMap<MemorySegment, TimestampEntry> flushedTable
     ) {
         this.memTable = memTable;
-        this.flush = flush;
-        this.sizeBytes = flush.values()
+        this.flushedTable = flushedTable;
+        this.sizeBytes = flushedTable.values()
                 .stream()
                 .mapToLong(TimestampEntry::getSizeBytes)
                 .sum();
@@ -52,8 +52,8 @@ class AtomicStore {
         return memTable;
     }
 
-    public SortedMap<MemorySegment, TimestampEntry> getFlush() {
-        return flush;
+    public SortedMap<MemorySegment, TimestampEntry> getFlushedTable() {
+        return flushedTable;
     }
 
     public long getSizeBytes() {

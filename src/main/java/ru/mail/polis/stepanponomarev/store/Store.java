@@ -45,7 +45,7 @@ public final class Store implements Closeable {
     public void flush(long timestamp) throws IOException {
         atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get()));
         final AtomicStore flushedStore = this.atomicStore.get();
-        if (flushedStore.getFlush().isEmpty()) {
+        if (flushedStore.getFlushedTable().isEmpty()) {
             return;
         }
 
@@ -53,9 +53,9 @@ public final class Store implements Closeable {
         Files.createDirectory(sstableDir);
         final SSTable ssTable = SSTable.createInstance(
                 sstableDir,
-                flushedStore.getFlush().values().iterator(),
+                flushedStore.getFlushedTable().values().iterator(),
                 flushedStore.getSizeBytes(),
-                flushedStore.getFlush().size()
+                flushedStore.getFlushedTable().size()
         );
 
         ssTables.add(ssTable);
@@ -85,7 +85,7 @@ public final class Store implements Closeable {
             data.add(ssTable.get(from, to));
         }
 
-        data.add(slice(atomicStore.get().getFlush(), from, to));
+        data.add(slice(atomicStore.get().getFlushedTable(), from, to));
         data.add(slice(atomicStore.get().getMemTable(), from, to));
 
         return MergeIterator.of(data, Utils.COMPARATOR);
