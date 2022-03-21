@@ -25,7 +25,7 @@ final class Index implements Closeable {
     public static Index upInstance(Path path, MemorySegment tableMemorySegment) throws IOException {
         final Path file = path.resolve(FILE_NAME);
         if (Files.notExists(file)) {
-            throw new IllegalArgumentException("File" + path + " is not exits.");
+            throw new IllegalArgumentException("File " + path + " is not exits.");
         }
 
         final MemorySegment indexMemorySegment = MemorySegment.mapFile(

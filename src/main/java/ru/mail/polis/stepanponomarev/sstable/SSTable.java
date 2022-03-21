@@ -53,7 +53,7 @@ public final class SSTable implements Closeable {
     public static SSTable upInstance(Path path) throws IOException {
         final Path file = path.resolve(FILE_NAME);
         if (Files.notExists(path)) {
-            throw new IllegalArgumentException("File" + path + " is not exits.");
+            throw new IllegalArgumentException("File " + path + " is not exits.");
         }
 
         final MemorySegment memorySegment = MemorySegment.mapFile(
