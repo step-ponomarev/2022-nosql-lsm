@@ -9,20 +9,20 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
-    private final Iterator<E> newDataIterator;
     private final Iterator<E> oldDataIterator;
+    private final Iterator<E> newDataIterator;
     private final Comparator<T> comparator;
 
-    private E secondEntry;
     private E firstEntry;
+    private E secondEntry;
 
     private MergeIterator(final Iterator<E> left, final Iterator<E> right, Comparator<T> comparator) {
-        this.newDataIterator = right;
         this.oldDataIterator = left;
+        this.newDataIterator = right;
         this.comparator = comparator;
 
-        this.secondEntry = getElement(newDataIterator);
         this.firstEntry = getElement(oldDataIterator);
+        this.secondEntry = getElement(newDataIterator);
     }
 
     public static <T, E extends Entry<T>> Iterator<E> of(List<Iterator<E>> iterators, Comparator<T> comparator) {
