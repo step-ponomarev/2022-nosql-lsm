@@ -19,7 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
-public final class Store implements Closeable {
+public final class Storage implements Closeable {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
@@ -27,7 +27,7 @@ public final class Store implements Closeable {
     private final CopyOnWriteArrayList<SSTable> ssTables;
     private final AtomicReference<AtomicStore> atomicStore;
 
-    public Store(Path path) throws IOException {
+    public Storage(Path path) throws IOException {
         this.path = path;
         this.ssTables = wakeUpSSTables(path);
         this.atomicStore = new AtomicReference<>(
