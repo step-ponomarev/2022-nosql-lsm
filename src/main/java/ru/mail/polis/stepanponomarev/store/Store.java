@@ -3,7 +3,6 @@ package ru.mail.polis.stepanponomarev.store;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.iterator.MergedIterator;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 import java.io.Closeable;
@@ -11,37 +10,29 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 public final class Store implements Closeable {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
 
     private final Path path;
-    private final AtomicLong sizeBytes;
     
-    private final List<SSTable> ssTables;
-    private final SortedMap<MemorySegment, TimestampEntry> memTable;
+    private final CopyOnWriteArrayList<SSTable> ssTables;
+    private final AtomicReference<AtomicStore> atomicStore;
 
-    public Store(Path path, Iterator<TimestampEntry> data) throws IOException {
+    public Store(Path path) throws IOException {
         this.path = path;
-        
         this.ssTables = wakeUpSSTables(path);
-        this.memTable = new ConcurrentSkipListMap<>(Utils.COMPARATOR);
-        long initSyzeBytes = 0;
-        while (data.hasNext()) {
-            final TimestampEntry entry = data.next();
-            initSyzeBytes += entry.getSizeBytes();
-            this.memTable.put(entry.key(), entry);
-        }
-        this.sizeBytes = new AtomicLong(initSyzeBytes);
+        this.atomicStore = new AtomicReference<>(
+                new AtomicStore(new ConcurrentSkipListMap<>(Utils.COMPARATOR))
+        );
     }
 
     @Override
@@ -52,36 +43,36 @@ public final class Store implements Closeable {
     }
 
     public void flush(long timestamp) throws IOException {
-        final long sizeBytesBeforeFlush = sizeBytes.get();
-        final Collection<TimestampEntry> values = memTable.values();
+        atomicStore.set(AtomicStore.prepareToFlush(atomicStore.get()));
+        final AtomicStore flushedStore = this.atomicStore.get();
+        if (flushedStore.getFlush().isEmpty()) {
+            return;
+        }
 
         final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + timestamp + System.nanoTime());
         Files.createDirectory(sstableDir);
-
         final SSTable ssTable = SSTable.createInstance(
                 sstableDir,
-                values.iterator(),
-                sizeBytes.get(),
-                values.size()
+                flushedStore.getFlush().values().iterator(),
+                flushedStore.getSizeBytes(),
+                flushedStore.getFlush().size()
         );
-        
+
         ssTables.add(ssTable);
-        
-        memTable.clear();
-        sizeBytes.addAndGet(-sizeBytesBeforeFlush);
+        atomicStore.set(AtomicStore.afterFlush(atomicStore.get()));
     }
 
     public TimestampEntry get(MemorySegment key) {
-        final TimestampEntry memoryEntry = this.memTable.get(key);
+        final TimestampEntry memoryEntry = atomicStore.get().getMemTable().get(key);
         if (memoryEntry != null) {
-            return memoryEntry;
+            return memoryEntry.value() == null ? null : memoryEntry;
         }
 
         final Iterator<TimestampEntry> data = get(key, null);
         while (data.hasNext()) {
             final TimestampEntry entry = data.next();
             if (Utils.compare(key, entry.key()) == 0) {
-                return entry;
+                return entry.value() == null ? null : entry;
             }
         }
 
@@ -94,9 +85,10 @@ public final class Store implements Closeable {
             data.add(ssTable.get(from, to));
         }
 
-        data.add(slice(memTable, from, to));
+        data.add(slice(atomicStore.get().getFlush(), from, to));
+        data.add(slice(atomicStore.get().getMemTable(), from, to));
 
-        return MergedIterator.of(data, Utils.COMPARATOR);
+        return MergeIterator.of(data, Utils.COMPARATOR);
     }
     
     private static Iterator<TimestampEntry> slice(
@@ -124,8 +116,7 @@ public final class Store implements Closeable {
     }
 
     public void put(TimestampEntry entry) {
-        memTable.put(entry.key(), entry);
-        sizeBytes.addAndGet(entry.getSizeBytes());
+        atomicStore.get().put(entry);
     }
 
     private static CopyOnWriteArrayList<SSTable> wakeUpSSTables(Path path) throws IOException {

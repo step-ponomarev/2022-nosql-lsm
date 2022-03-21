@@ -4,7 +4,6 @@ import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.iterator.MappedIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -15,7 +14,7 @@ import java.util.Collections;
 import java.util.Iterator;
 
 public final class SSTable implements Closeable {
-    public static final int TOMBSTONE_TAG = -1;
+    public static final long TOMBSTONE_TAG = -1;
     private static final String FILE_NAME = "sstable.data";
 
     private final Index index;

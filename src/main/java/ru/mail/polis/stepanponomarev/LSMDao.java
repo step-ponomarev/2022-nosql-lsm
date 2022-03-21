@@ -7,51 +7,32 @@ import ru.mail.polis.stepanponomarev.store.Store;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     private final Store store;
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     public LSMDao(Path path) throws IOException {
         if (Files.notExists(path)) {
             throw new IllegalArgumentException("Path: " + path + " is not exist");
         }
-        
-        store = new Store(path, Collections.emptyIterator());
+
+        store = new Store(path);
     }
 
     @Override
     public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) throws IOException {
-        lock.readLock().lock();
-        try {
-            return store.get(from, to);
-        } finally {
-            lock.readLock().unlock();
-        }
+        return new TombstoneSkipIterator<>(store.get(from, to));
     }
 
     @Override
     public TimestampEntry get(MemorySegment key) throws IOException {
-        lock.readLock().lock();
-        try {
-            return store.get(key);
-        } finally {
-            lock.readLock().unlock();
-        }
+        return store.get(key);
     }
 
     @Override
     public void upsert(TimestampEntry entry) {
-        lock.readLock().lock();
-        try {
-            store.put(entry);
-        } finally {
-            lock.readLock().unlock();
-        }
+        store.put(entry);
     }
 
     @Override
@@ -63,12 +44,6 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     @Override
     public void flush() throws IOException {
         final long timestamp = System.currentTimeMillis();
-        
-        lock.writeLock().lock();
-        try {
-            store.flush(timestamp);
-        } finally {
-            lock.writeLock().unlock();
-        }
+        store.flush(timestamp);
     }
 }
