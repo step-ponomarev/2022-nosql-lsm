@@ -6,23 +6,23 @@ import jdk.incubator.foreign.MemorySegment;
 import java.util.Comparator;
 
 public final class Utils {
-    public static final Comparator<MemorySegment> COMPARATOR = (MemorySegment m1, MemorySegment m2) -> {
-        final long mismatch = m1.mismatch(m2);
+    public static final Comparator<MemorySegment> COMPARATOR = (MemorySegment s1, MemorySegment s2) -> {
+        final long mismatch = s1.mismatch(s2);
         if (mismatch == -1) {
             return 0;
         }
 
-        if (mismatch == m1.byteSize()) {
+        if (mismatch == s1.byteSize()) {
             return -1;
         }
 
-        if (mismatch == m2.byteSize()) {
+        if (mismatch == s2.byteSize()) {
             return 1;
         }
 
         return Byte.compare(
-                MemoryAccess.getByteAtOffset(m1, mismatch),
-                MemoryAccess.getByteAtOffset(m2, mismatch)
+                MemoryAccess.getByteAtOffset(s1, mismatch),
+                MemoryAccess.getByteAtOffset(s2, mismatch)
         );
     };
 
