@@ -80,15 +80,15 @@ public final class Store implements Closeable {
     }
 
     public Iterator<TimestampEntry> get(MemorySegment from, MemorySegment to) {
-        final List<Iterator<TimestampEntry>> data = new ArrayList<>(ssTables.size() + 2);
+        final List<Iterator<TimestampEntry>> entries = new ArrayList<>(ssTables.size() + 2);
         for (SSTable ssTable : ssTables) {
-            data.add(ssTable.get(from, to));
+            entries.add(ssTable.get(from, to));
         }
 
-        data.add(slice(atomicStore.get().getFlushedTable(), from, to));
-        data.add(slice(atomicStore.get().getMemTable(), from, to));
+        entries.add(slice(atomicStore.get().getFlushedTable(), from, to));
+        entries.add(slice(atomicStore.get().getMemTable(), from, to));
 
-        return MergeIterator.of(data, Utils.COMPARATOR);
+        return MergeIterator.of(entries, Utils.COMPARATOR);
     }
     
     private static Iterator<TimestampEntry> slice(
