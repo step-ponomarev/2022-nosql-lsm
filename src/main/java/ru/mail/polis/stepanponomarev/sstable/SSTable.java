@@ -115,26 +115,30 @@ public final class SSTable implements Closeable {
             return new MappedIterator(tableMemorySegment.asSlice(0, size));
         }
 
-        final int indexAmount = index.getPositionAmount();
-        int currIndex = from == null ? 0 : findIndex(from);
-        final long fromPosition;
-        if (currIndex < 0) {
-            currIndex = indexAmount + currIndex <= 0 ? 0 : indexAmount + currIndex;
-            fromPosition = index.getPositionByIndex(currIndex);
-        } else {
-            fromPosition = index.getPositionByIndex(currIndex);
-        }
+        final int maxIndex = index.getPositionAmount() - 1;
+        final int fromIndex = from == null ? 0 : prepareIndexFrom(findIndex(from));
+        final long fromPosition = fromIndex > maxIndex ? size : index.getPositionByIndex(fromIndex);
 
-
-        currIndex = to == null ? indexAmount - 1 : findIndex(to);
-        final long toPosition;
-        if (currIndex < 0) {
-            toPosition = index.getPositionByIndex(indexAmount + currIndex - 1);
-        } else {
-            toPosition = currIndex == indexAmount - 1 ? size : index.getPositionByIndex(currIndex + 1);
-        }
+        final int toIndex = to == null ? maxIndex : prepareIndexTo(findIndex(to));
+        final long toPosition = toIndex >= maxIndex ? size : index.getPositionByIndex(toIndex + 1);
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
+    }
+
+    private int prepareIndexFrom(int i) {
+        if (i >= 0) {
+            return i;
+        }
+
+        return Math.abs(i) - 1;
+    }
+
+    private int prepareIndexTo(int i) {
+        if (i >= 0) {
+            return i;
+        }
+
+        return Math.abs(i) - 1;
     }
 
     private int findIndex(MemorySegment key) {
@@ -148,7 +152,7 @@ public final class SSTable implements Closeable {
             final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
             final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
 
-            final int compareResult = Utils.compare(key, foundKey);
+            final int compareResult = Utils.compare(foundKey, key);
             if (compareResult < 0) {
                 low = mid + 1;
             } else if (compareResult > 0) {
@@ -158,7 +162,7 @@ public final class SSTable implements Closeable {
             }
         }
 
-        return -(low + 1);
+        return -low;
     }
 
     /**
