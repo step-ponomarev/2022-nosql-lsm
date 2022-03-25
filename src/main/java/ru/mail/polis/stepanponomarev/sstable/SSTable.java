@@ -4,6 +4,7 @@ import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import jdk.incubator.foreign.ResourceScope;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -31,69 +32,71 @@ public final class SSTable implements Closeable {
             long sizeBytes,
             int count
     ) throws IOException {
-        final Path file = path.resolve(FILE_NAME);
-        Files.createFile(file);
+        final Path sstableFile = path.resolve(FILE_NAME);
+        Files.createFile(sstableFile);
 
-        final long fileSize = (long) Long.BYTES * 2 * count + sizeBytes;
-        final long[] positions = flushAndAndGetPositions(file, data, fileSize, count);
-        final MemorySegment tableMemorySegment = MemorySegment.mapFile(
-                file,
+        final long sstableSizeBytes = (long) Long.BYTES * 2 * count + sizeBytes;
+        final MemorySegment mappedSsTable = MemorySegment.mapFile(
+                sstableFile,
                 0,
-                fileSize,
-                FileChannel.MapMode.READ_ONLY,
-                ResourceScope.newSharedScope()
-        );
-
-        return new SSTable(
-                Index.createInstance(path, positions, tableMemorySegment),
-                tableMemorySegment
-        );
-    }
-
-    public static SSTable upInstance(Path path) throws IOException {
-        final Path file = path.resolve(FILE_NAME);
-        if (Files.notExists(path)) {
-            throw new IllegalArgumentException("File " + path + " is not exits.");
-        }
-
-        final MemorySegment memorySegment = MemorySegment.mapFile(
-                file,
-                0,
-                Files.size(file),
-                FileChannel.MapMode.READ_ONLY,
-                ResourceScope.newSharedScope()
-        );
-        final Index index = Index.upInstance(path, memorySegment);
-
-        return new SSTable(index, memorySegment);
-    }
-
-    private static long[] flushAndAndGetPositions(
-            Path file,
-            Iterator<TimestampEntry> data,
-            long fileSize,
-            int dataAmount
-    ) throws IOException {
-        final MemorySegment memorySegment = MemorySegment.mapFile(
-                file,
-                0,
-                fileSize,
+                sstableSizeBytes,
                 FileChannel.MapMode.READ_WRITE,
                 ResourceScope.newSharedScope()
         );
 
-        int i = 0;
-        final long[] positions = new long[dataAmount];
+        final Path indexFile = path.resolve(Index.FILE_NAME);
+        Files.createFile(indexFile);
 
-        long currentOffset = 0;
-        while (data.hasNext()) {
-            positions[i++] = currentOffset;
+        final long indexSizeBytes = (long) Long.BYTES * count;
+        final MemorySegment mappedIndex = MemorySegment.mapFile(
+                indexFile,
+                0,
+                indexSizeBytes,
+                FileChannel.MapMode.READ_WRITE,
+                ResourceScope.newSharedScope()
+        );
 
-            final TimestampEntry entry = data.next();
-            currentOffset = flush(entry, memorySegment, currentOffset);
+        flush(data, mappedSsTable, mappedIndex);
+
+        return new SSTable(new Index(mappedIndex.asReadOnly()), mappedSsTable.asReadOnly());
+    }
+
+    public static SSTable upInstance(Path path) throws IOException {
+        final Path sstableFile = path.resolve(FILE_NAME);
+        final Path indexFile = path.resolve(Index.FILE_NAME);
+        if (Files.notExists(path) || Files.notExists(indexFile)) {
+            throw new IllegalArgumentException("Files must exist.");
         }
 
-        return positions;
+        final MemorySegment mappedSsTable = MemorySegment.mapFile(
+                sstableFile,
+                0,
+                Files.size(sstableFile),
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.newSharedScope()
+        );
+
+        final MemorySegment mappedIndex = MemorySegment.mapFile(
+                indexFile,
+                0,
+                Files.size(indexFile),
+                FileChannel.MapMode.READ_ONLY,
+                ResourceScope.newSharedScope()
+        );
+
+        return new SSTable(new Index(mappedIndex), mappedSsTable);
+    }
+
+    private static void flush(Iterator<TimestampEntry> data, MemorySegment sstable, MemorySegment index) {
+        long indexOffset = 0;
+        long sstableOffset = 0;
+        while (data.hasNext()) {
+            MemoryAccess.setLongAtOffset(index, indexOffset, sstableOffset);
+            indexOffset += Long.BYTES;
+
+            final TimestampEntry entry = data.next();
+            sstableOffset += flush(entry, sstable, sstableOffset);
+        }
     }
 
     @Override
@@ -108,15 +111,59 @@ public final class SSTable implements Closeable {
             return Collections.emptyIterator();
         }
 
-        final long fromPosition = from == null ? 0 : index.findKeyPosition(from);
-        final long toPosition = to == null ? size : index.findKeyPosition(to);
-        if (fromPosition == toPosition) {
-            return Collections.emptyIterator();
+        if (from == null && to == null) {
+            return new MappedIterator(tableMemorySegment.asSlice(0, size));
+        }
+
+        final int indexAmount = index.getPositionAmount();
+        int currIndex = from == null ? 0 : findIndex(from);
+        final long fromPosition;
+        if (currIndex < 0) {
+            currIndex = indexAmount + currIndex <= 0 ? 0 : indexAmount + currIndex;
+            fromPosition = index.getPositionByIndex(currIndex);
+        } else {
+            fromPosition = index.getPositionByIndex(currIndex);
+        }
+
+
+        currIndex = to == null ? indexAmount - 1 : findIndex(to);
+        final long toPosition;
+        if (currIndex < 0) {
+            toPosition = index.getPositionByIndex(indexAmount + currIndex - 1);
+        } else {
+            toPosition = currIndex == indexAmount - 1 ? size : index.getPositionByIndex(currIndex + 1);
         }
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
-    
+
+    private int findIndex(MemorySegment key) {
+        int low = 0;
+        int high = index.getPositionAmount() - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+
+            final long keyPosition = index.getPositionByIndex(mid);
+            final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
+            final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
+
+            final int compareResult = Utils.compare(key, foundKey);
+            if (compareResult < 0) {
+                low = mid + 1;
+            } else if (compareResult > 0) {
+                high = mid - 1;
+            } else {
+                return mid;
+            }
+        }
+
+        return -(low + 1);
+    }
+
+    /**
+     * @return размер записи.
+     */
     private static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
         final MemorySegment key = entry.key();
         final long keySize = key.byteSize();
@@ -134,7 +181,7 @@ public final class SSTable implements Closeable {
         final MemorySegment value = entry.value();
         if (value == null) {
             MemoryAccess.setLongAtOffset(memorySegment, writeOffset, TOMBSTONE_TAG);
-            return writeOffset + Long.BYTES;
+            return writeOffset + Long.BYTES - offset;
         }
 
         final long valueSize = value.byteSize();
@@ -144,6 +191,6 @@ public final class SSTable implements Closeable {
         memorySegment.asSlice(writeOffset, valueSize).copyFrom(value);
         writeOffset += valueSize;
 
-        return writeOffset;
+        return writeOffset - offset;
     }
 }

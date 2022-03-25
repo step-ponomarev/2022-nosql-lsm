@@ -48,7 +48,7 @@ public final class Storage implements Closeable {
                 .mapToLong(TimestampEntry::getSizeBytes)
                 .sum();
 
-        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + timestamp + System.nanoTime());
+        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + timestamp);
         Files.createDirectory(sstableDir);
 
         final SSTable ssTable = SSTable.createInstance(

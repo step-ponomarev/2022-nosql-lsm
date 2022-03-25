@@ -16,13 +16,13 @@ public class TombstoneSkipIterator<T, E extends Entry<T>> implements Iterator<E>
 
     @Override
     public boolean hasNext() {
-        return current != null || delegate.hasNext();
+        return current != null;
     }
 
     @Override
     public E next() {
         if (!hasNext()) {
-            throw new NoSuchElementException("No such element");
+            throw new NoSuchElementException();
         }
 
         final E next = current;
