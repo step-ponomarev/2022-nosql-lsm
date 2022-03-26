@@ -10,20 +10,15 @@ import ru.mail.polis.test.DaoFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 @DaoFactory(stage = 3)
 public class LSMDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
 
     @Override
     public Dao<MemorySegment, TimestampEntry> createDao(Config config) throws IOException {
-        final Path path = config.basePath();
-        if (Files.notExists(path)) {
-            Files.createDirectory(path);
-        }
-
-        return new LSMDao(path);
+        return new LSMDao(
+                config.basePath()
+        );
     }
 
     @Override
