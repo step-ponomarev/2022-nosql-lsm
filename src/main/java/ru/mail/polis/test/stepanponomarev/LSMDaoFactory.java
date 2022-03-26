@@ -11,7 +11,7 @@ import ru.mail.polis.test.DaoFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-@DaoFactory(stage = 3, week = 2)
+@DaoFactory(stage = 3)
 public class LSMDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
 
     @Override
