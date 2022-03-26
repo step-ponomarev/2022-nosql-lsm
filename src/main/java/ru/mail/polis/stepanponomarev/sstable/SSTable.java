@@ -1,11 +1,5 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
-import jdk.incubator.foreign.MemoryAccess;
-import jdk.incubator.foreign.MemorySegment;
-import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -13,6 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
+
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
 
 public final class SSTable implements Closeable {
     public static final long TOMBSTONE_TAG = -1;
@@ -116,32 +116,16 @@ public final class SSTable implements Closeable {
         }
 
         final int maxIndex = index.getPositionAmount() - 1;
-        final int fromIndex = from == null ? 0 : prepareIndexFrom(findIndex(from));
+        final int fromIndex = from == null ? 0 : Math.abs(findIndexOfKey(from));
         final long fromPosition = fromIndex > maxIndex ? size : index.getPositionByIndex(fromIndex);
 
-        final int toIndex = to == null ? maxIndex : prepareIndexTo(findIndex(to));
-        final long toPosition = toIndex >= maxIndex ? size : index.getPositionByIndex(toIndex + 1);
+        final int toIndex = to == null ? maxIndex + 1 : Math.abs(findIndexOfKey(to));
+        final long toPosition = toIndex > maxIndex ? size : index.getPositionByIndex(toIndex);
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
 
-    private int prepareIndexFrom(int i) {
-        if (i >= 0) {
-            return i;
-        }
-
-        return Math.abs(i) - 1;
-    }
-
-    private int prepareIndexTo(int i) {
-        if (i >= 0) {
-            return i;
-        }
-
-        return Math.abs(i) - 1;
-    }
-
-    private int findIndex(MemorySegment key) {
+    private int findIndexOfKey(MemorySegment key) {
         int low = 0;
         int high = index.getPositionAmount() - 1;
 
