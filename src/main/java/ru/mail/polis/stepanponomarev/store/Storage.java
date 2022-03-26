@@ -62,7 +62,7 @@ public final class Storage implements Closeable {
     }
 
     private static String getHash(long timestamp) {
-        final int HASH_SIZE = 15;
+        final int HASH_SIZE = 20;
 
         StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()));
         while (hash.length() < HASH_SIZE) {
