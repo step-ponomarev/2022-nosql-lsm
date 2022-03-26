@@ -13,16 +13,16 @@ final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> newDataIterator;
     private final Comparator<T> comparator;
 
-    private E firstEntry;
-    private E secondEntry;
+    private E oldEntry;
+    private E newEntry;
 
     private MergeIterator(final Iterator<E> left, final Iterator<E> right, Comparator<T> comparator) {
         this.oldDataIterator = left;
         this.newDataIterator = right;
         this.comparator = comparator;
 
-        this.firstEntry = getElement(oldDataIterator);
-        this.secondEntry = getElement(newDataIterator);
+        this.oldEntry = getElement(oldDataIterator);
+        this.newEntry = getElement(newDataIterator);
     }
 
     public static <T, E extends Entry<T>> Iterator<E> of(List<Iterator<E>> iterators, Comparator<T> comparator) {
@@ -44,7 +44,7 @@ final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
 
     @Override
     public boolean hasNext() {
-        return firstEntry != null || secondEntry != null;
+        return oldEntry != null || newEntry != null;
     }
 
     @Override
@@ -53,25 +53,25 @@ final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
             throw new NoSuchElementException("No such element");
         }
 
-        final int compareResult = compare(firstEntry, secondEntry);
+        final int compareResult = compare(oldEntry, newEntry);
 
         if (compareResult == 0) {
-            final E next = secondEntry;
-            firstEntry = getElement(oldDataIterator);
-            secondEntry = getElement(newDataIterator);
+            final E next = newEntry;
+            oldEntry = getElement(oldDataIterator);
+            newEntry = getElement(newDataIterator);
 
             return next;
         }
 
         if (compareResult < 0) {
-            final E next = firstEntry;
-            firstEntry = getElement(oldDataIterator);
+            final E next = oldEntry;
+            oldEntry = getElement(oldDataIterator);
 
             return next;
         }
 
-        final E next = secondEntry;
-        secondEntry = getElement(newDataIterator);
+        final E next = newEntry;
+        newEntry = getElement(newDataIterator);
 
         return next;
     }
