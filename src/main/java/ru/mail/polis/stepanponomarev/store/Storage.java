@@ -32,7 +32,7 @@ public final class Storage implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         for (SSTable ssTable : ssTables) {
             ssTable.close();
         }

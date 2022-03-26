@@ -6,8 +6,6 @@ import jdk.incubator.foreign.MemorySegment;
 import java.io.Closeable;
 
 final class Index implements Closeable {
-    public static final String FILE_NAME = "sstable.index";
-
     private final MemorySegment indexMemorySegment;
 
     public Index(MemorySegment mappedIndex) {

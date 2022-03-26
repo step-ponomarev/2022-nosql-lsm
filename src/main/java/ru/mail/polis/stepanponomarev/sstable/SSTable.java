@@ -1,5 +1,11 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -8,15 +14,10 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 
-import jdk.incubator.foreign.MemoryAccess;
-import jdk.incubator.foreign.MemorySegment;
-import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-
 public final class SSTable implements Closeable {
     public static final long TOMBSTONE_TAG = -1;
-    private static final String FILE_NAME = "sstable.data";
+    private static final String SSTABLE_FILE_NAME = "sstable.data";
+    private static final String INDEX_FILE_NAME = "sstable.index";
 
     private final Index index;
     private final MemorySegment tableMemorySegment;
@@ -32,7 +33,7 @@ public final class SSTable implements Closeable {
             long sizeBytes,
             int count
     ) throws IOException {
-        final Path sstableFile = path.resolve(FILE_NAME);
+        final Path sstableFile = path.resolve(SSTABLE_FILE_NAME);
         Files.createFile(sstableFile);
 
         final long sstableSizeBytes = (long) Long.BYTES * 2 * count + sizeBytes;
@@ -44,7 +45,7 @@ public final class SSTable implements Closeable {
                 ResourceScope.newSharedScope()
         );
 
-        final Path indexFile = path.resolve(Index.FILE_NAME);
+        final Path indexFile = path.resolve(INDEX_FILE_NAME);
         Files.createFile(indexFile);
 
         final long indexSizeBytes = (long) Long.BYTES * count;
@@ -62,8 +63,8 @@ public final class SSTable implements Closeable {
     }
 
     public static SSTable upInstance(Path path) throws IOException {
-        final Path sstableFile = path.resolve(FILE_NAME);
-        final Path indexFile = path.resolve(Index.FILE_NAME);
+        final Path sstableFile = path.resolve(SSTABLE_FILE_NAME);
+        final Path indexFile = path.resolve(INDEX_FILE_NAME);
         if (Files.notExists(path) || Files.notExists(indexFile)) {
             throw new IllegalArgumentException("Files must exist.");
         }
@@ -148,10 +149,7 @@ public final class SSTable implements Closeable {
 
         return -low;
     }
-
-    /**
-     * @return размер записи.
-     */
+    
     private static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
         final MemorySegment key = entry.key();
         final long keySize = key.byteSize();
