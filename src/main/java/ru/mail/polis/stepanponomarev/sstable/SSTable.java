@@ -19,11 +19,11 @@ public final class SSTable implements Closeable {
     private static final String SSTABLE_FILE_NAME = "sstable.data";
     private static final String INDEX_FILE_NAME = "sstable.index";
 
-    private final Index index;
+    private final MemorySegment indexMemorySegment;
     private final MemorySegment tableMemorySegment;
 
-    private SSTable(Index index, MemorySegment tableMemorySegment) {
-        this.index = index;
+    private SSTable(MemorySegment indexMemorySegment, MemorySegment tableMemorySegment) {
+        this.indexMemorySegment = indexMemorySegment;
         this.tableMemorySegment = tableMemorySegment;
     }
 
@@ -59,7 +59,7 @@ public final class SSTable implements Closeable {
 
         flush(data, mappedSsTable, mappedIndex);
 
-        return new SSTable(new Index(mappedIndex.asReadOnly()), mappedSsTable.asReadOnly());
+        return new SSTable(mappedIndex.asReadOnly(), mappedSsTable.asReadOnly());
     }
 
     public static SSTable upInstance(Path path) throws IOException {
@@ -85,7 +85,7 @@ public final class SSTable implements Closeable {
                 ResourceScope.newSharedScope()
         );
 
-        return new SSTable(new Index(mappedIndex), mappedSsTable);
+        return new SSTable(mappedIndex, mappedSsTable);
     }
 
     private static void flush(Iterator<TimestampEntry> data, MemorySegment sstable, MemorySegment index) {
@@ -102,7 +102,7 @@ public final class SSTable implements Closeable {
 
     @Override
     public void close() {
-        index.close();
+        indexMemorySegment.scope().close();
         tableMemorySegment.scope().close();
     }
 
@@ -116,24 +116,24 @@ public final class SSTable implements Closeable {
             return new MappedIterator(tableMemorySegment.asSlice(0, size));
         }
 
-        final int maxIndex = index.getPositionAmount() - 1;
+        final int max = (int) (indexMemorySegment.byteSize() / Long.BYTES) - 1;
         final int fromIndex = from == null ? 0 : Math.abs(findIndexOfKey(from));
-        final long fromPosition = fromIndex > maxIndex ? size : index.getPositionByIndex(fromIndex);
+        final long fromPosition = fromIndex > max ? size : MemoryAccess.getLongAtIndex(indexMemorySegment, fromIndex);
 
-        final int toIndex = to == null ? maxIndex + 1 : Math.abs(findIndexOfKey(to));
-        final long toPosition = toIndex > maxIndex ? size : index.getPositionByIndex(toIndex);
+        final int toIndex = to == null ? max + 1 : Math.abs(findIndexOfKey(to));
+        final long toPosition = toIndex > max ? size : MemoryAccess.getLongAtIndex(indexMemorySegment, toIndex);
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
 
     private int findIndexOfKey(MemorySegment key) {
         int low = 0;
-        int high = index.getPositionAmount() - 1;
+        int high = (int) (indexMemorySegment.byteSize() / Long.BYTES) - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
 
-            final long keyPosition = index.getPositionByIndex(mid);
+            final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
             final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
             final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
 
