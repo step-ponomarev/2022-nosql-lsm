@@ -1,10 +1,5 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.sstable.SSTable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,6 +12,11 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
+
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
 public final class Storage implements Closeable {
     private static final String SSTABLE_DIR_NAME = "SSTable_";
@@ -38,7 +38,7 @@ public final class Storage implements Closeable {
         }
     }
 
-    public void flush() throws IOException {
+    public void flush(long timestamp) throws IOException {
         if (memTable.isEmpty()) {
             return;
         }
@@ -48,7 +48,7 @@ public final class Storage implements Closeable {
                 .mapToLong(TimestampEntry::getSizeBytes)
                 .sum();
 
-        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + ssTables.size());
+        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + getHash(timestamp));
         Files.createDirectory(sstableDir);
 
         final SSTable ssTable = SSTable.createInstance(
@@ -60,7 +60,18 @@ public final class Storage implements Closeable {
 
         ssTables.add(ssTable);
     }
-    
+
+    private String getHash(long timestamp) {
+        final int HASH_SIZE = 20;
+
+        StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()) + "_" + ssTables.size());
+        while (hash.length() < HASH_SIZE) {
+            hash.append(0);
+        }
+
+        return hash.substring(0, HASH_SIZE);
+    }
+
     public TimestampEntry get(MemorySegment key) {
         final TimestampEntry memoryEntry = memTable.get(key);
         if (memoryEntry != null) {
