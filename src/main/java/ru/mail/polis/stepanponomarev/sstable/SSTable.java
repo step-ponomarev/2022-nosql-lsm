@@ -85,7 +85,7 @@ public final class SSTable implements Closeable {
                 ResourceScope.newSharedScope()
         );
 
-        return new SSTable(new Index(mappedIndex), mappedSsTable);
+        return new SSTable(new Index(mappedIndex), path.getFileName().toString(), mappedSsTable);
     }
 
     private static void flush(Iterator<TimestampEntry> data, MemorySegment sstable, MemorySegment index) {

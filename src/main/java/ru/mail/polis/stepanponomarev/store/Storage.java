@@ -2,6 +2,7 @@ package ru.mail.polis.stepanponomarev.store;
 
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.TombstoneSkipIterator;
 import ru.mail.polis.stepanponomarev.Utils;
 import ru.mail.polis.stepanponomarev.sstable.SSTable;
 
@@ -43,7 +44,31 @@ public final class Storage implements Closeable {
             return;
         }
 
-        final long sizeBytes = memTable.values()
+        ssTables.add(
+                flush(memTable, timestamp)
+        );
+    }
+
+    public void compact(long timestamp) throws IOException {
+        final Iterator<TimestampEntry> dataIterator = new TombstoneSkipIterator<>(get(null, null));
+        if (!dataIterator.hasNext()) {
+            return;
+        }
+
+        final SortedMap<MemorySegment, TimestampEntry> data = new ConcurrentSkipListMap<>(Utils.COMPARATOR);
+        while (dataIterator.hasNext()) {
+            TimestampEntry entry = dataIterator.next();
+            data.put(entry.key(), entry);
+        }
+
+        
+        //TODO: Нужно реализовать удаление всех остальных SSTable
+        // на подумать: должна ли sstable отвечать за свое удаление?
+        final SSTable flushedSSTable = flush(data, timestamp);                
+    }
+
+    private SSTable flush(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
+        final long sizeBytes = data.values()
                 .stream()
                 .mapToLong(TimestampEntry::getSizeBytes)
                 .sum();
@@ -51,14 +76,12 @@ public final class Storage implements Closeable {
         final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + getHash(timestamp));
         Files.createDirectory(sstableDir);
 
-        final SSTable ssTable = SSTable.createInstance(
+        return SSTable.createInstance(
                 sstableDir,
-                memTable.values().iterator(),
+                data.values().iterator(),
                 sizeBytes,
-                memTable.size()
+                data.size()
         );
-
-        ssTables.add(ssTable);
     }
 
     private static String getHash(long timestamp) {

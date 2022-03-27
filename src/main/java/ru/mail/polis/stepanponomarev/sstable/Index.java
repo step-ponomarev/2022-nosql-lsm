@@ -5,6 +5,7 @@ import jdk.incubator.foreign.MemorySegment;
 
 import java.io.Closeable;
 
+// TODO: необходим ли этот класс?
 final class Index implements Closeable {
     private final MemorySegment indexMemorySegment;
 
