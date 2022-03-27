@@ -38,7 +38,7 @@ public final class Storage implements Closeable {
         }
     }
 
-    public void flush(long timestamp) throws IOException {
+    public void flush() throws IOException {
         if (memTable.isEmpty()) {
             return;
         }
@@ -48,7 +48,7 @@ public final class Storage implements Closeable {
                 .mapToLong(TimestampEntry::getSizeBytes)
                 .sum();
 
-        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + getHash(timestamp));
+        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + ssTables.size());
         Files.createDirectory(sstableDir);
 
         final SSTable ssTable = SSTable.createInstance(
@@ -60,18 +60,7 @@ public final class Storage implements Closeable {
 
         ssTables.add(ssTable);
     }
-
-    private static String getHash(long timestamp) {
-        final int HASH_SIZE = 20;
-
-        StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()));
-        while (hash.length() < HASH_SIZE) {
-            hash.append(0);
-        }
-
-        return hash.substring(0, HASH_SIZE);
-    }
-
+    
     public TimestampEntry get(MemorySegment key) {
         final TimestampEntry memoryEntry = memTable.get(key);
         if (memoryEntry != null) {

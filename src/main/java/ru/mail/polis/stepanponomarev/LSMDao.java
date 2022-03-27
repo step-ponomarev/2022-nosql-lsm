@@ -43,7 +43,6 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     @Override
     public void flush() throws IOException {
-        final long timestamp = System.currentTimeMillis();
-        storage.flush(timestamp);
+        storage.flush();
     }
 }
