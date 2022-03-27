@@ -61,10 +61,10 @@ public final class Storage implements Closeable {
         ssTables.add(ssTable);
     }
 
-    private String getHash(long timestamp) {
+    private static String getHash(long timestamp) {
         final int HASH_SIZE = 20;
 
-        StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()) + "_" + ssTables.size());
+        StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()));
         while (hash.length() < HASH_SIZE) {
             hash.append(0);
         }
