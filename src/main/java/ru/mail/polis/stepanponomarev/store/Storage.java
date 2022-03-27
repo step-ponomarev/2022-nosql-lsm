@@ -62,7 +62,7 @@ public final class Storage implements Closeable {
     }
 
     private static String getHash(long timestamp) {
-        final int HASH_SIZE = 20;
+        final int HASH_SIZE = 30;
 
         StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()));
         while (hash.length() < HASH_SIZE) {
@@ -79,10 +79,18 @@ public final class Storage implements Closeable {
         }
 
         final Iterator<TimestampEntry> data = get(key, null);
+        if (!data.hasNext()) {
+            return null;
+        }
+
         while (data.hasNext()) {
             final TimestampEntry entry = data.next();
             if (Utils.compare(key, entry.key()) == 0) {
                 return entry.value() == null ? null : entry;
+            }
+
+            if (Utils.compare(key, entry.key()) < 0) {
+                return null;
             }
         }
 

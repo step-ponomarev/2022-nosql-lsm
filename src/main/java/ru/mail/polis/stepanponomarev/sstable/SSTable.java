@@ -113,14 +113,18 @@ public final class SSTable implements Closeable {
         }
 
         if (from == null && to == null) {
-            return new MappedIterator(tableMemorySegment.asSlice(0, size));
+            return new MappedIterator(tableMemorySegment);
         }
 
         final int max = (int) (indexMemorySegment.byteSize() / Long.BYTES) - 1;
         final int fromIndex = from == null ? 0 : Math.abs(findIndexOfKey(from));
-        final long fromPosition = fromIndex > max ? size : MemoryAccess.getLongAtIndex(indexMemorySegment, fromIndex);
+
+        if (fromIndex > max) {
+            return Collections.emptyIterator();
+        }
 
         final int toIndex = to == null ? max + 1 : Math.abs(findIndexOfKey(to));
+        final long fromPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, fromIndex);
         final long toPosition = toIndex > max ? size : MemoryAccess.getLongAtIndex(indexMemorySegment, toIndex);
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
@@ -135,9 +139,9 @@ public final class SSTable implements Closeable {
 
             final long keyPosition = MemoryAccess.getLongAtIndex(indexMemorySegment, mid);
             final long keySize = MemoryAccess.getLongAtOffset(tableMemorySegment, keyPosition);
-            final MemorySegment foundKey = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
+            final MemorySegment current = tableMemorySegment.asSlice(keyPosition + Long.BYTES, keySize);
 
-            final int compareResult = Utils.compare(foundKey, key);
+            final int compareResult = Utils.compare(current, key);
             if (compareResult < 0) {
                 low = mid + 1;
             } else if (compareResult > 0) {
