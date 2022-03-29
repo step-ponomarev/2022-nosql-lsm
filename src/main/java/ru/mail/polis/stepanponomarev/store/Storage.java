@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
@@ -61,10 +62,34 @@ public final class Storage implements Closeable {
             data.put(entry.key(), entry);
         }
 
-        
-        //TODO: Нужно реализовать удаление всех остальных SSTable
-        // на подумать: должна ли sstable отвечать за свое удаление?
-        final SSTable flushedSSTable = flush(data, timestamp);                
+        //TODO: ОПАСНОСТЬ!!11
+        final SSTable flushedSSTable = flush(data, timestamp);
+        ssTables.clear();
+        ssTables.add(flushedSSTable);
+
+        removeFilesWithNaster(
+                getSSTablesOlderThan(path, timestamp)
+        );
+    }
+
+    private static List<Path> getSSTablesOlderThan(Path path, long timestamp) throws IOException {
+        try (Stream<Path> files = Files.walk(path)) {
+            return files
+                    .filter(f -> f.getFileName().toString().contains(SSTABLE_DIR_NAME))
+                    .filter(f -> !f.getFileName().toString().contains(String.valueOf(timestamp)))
+                    .toList();
+        }
+    }
+
+    private static void removeFilesWithNaster(List<Path> files) throws IOException {
+        for (Path dirs : files) {
+            try (Stream<Path> ssTableFiles = Files.walk(dirs)) {
+                final Iterator<Path> filesToRemove = ssTableFiles.sorted(Comparator.reverseOrder()).iterator();
+                while (filesToRemove.hasNext()) {
+                    Files.delete(filesToRemove.next());
+                }
+            }
+        }
     }
 
     private SSTable flush(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
