@@ -85,11 +85,13 @@ public final class Storage implements Closeable {
 
         while (data.hasNext()) {
             final TimestampEntry entry = data.next();
-            if (Utils.compare(key, entry.key()) < 0) {
+
+            final int compareResult = Utils.compare(key, entry.key());
+            if (compareResult < 0) {
                 return null;
             }
 
-            if (Utils.compare(key, entry.key()) == 0) {
+            if (compareResult == 0) {
                 return entry.value() == null ? null : entry;
             }
         }
