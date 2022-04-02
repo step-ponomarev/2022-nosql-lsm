@@ -135,8 +135,7 @@ public final class Storage implements Closeable {
         if (Utils.compare(key, entry.key()) == 0) {
             return entry.value() == null ? null : entry;
         }
-
-
+        
         return null;
     }
 
