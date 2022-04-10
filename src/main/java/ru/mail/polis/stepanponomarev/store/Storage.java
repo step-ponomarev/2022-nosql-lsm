@@ -53,10 +53,6 @@ public final class Storage implements Closeable {
     }
 
     public void compact(long timestamp) throws IOException {
-        if (ssTables.size() <= 1) {
-            return;
-        }
-        
         final Iterator<TimestampEntry> dataIterator = new TombstoneSkipIterator<>(get(null, null));
         if (!dataIterator.hasNext()) {
             return;
