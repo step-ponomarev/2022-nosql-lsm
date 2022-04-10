@@ -111,7 +111,7 @@ public final class Storage implements Closeable {
     }
 
     private static String createHash(long timestamp) {
-        final int HASH_SIZE = 30;
+        final int HASH_SIZE = 40;
 
         StringBuilder hash = new StringBuilder(getTimeMark(timestamp))
                 .append("_H_")
