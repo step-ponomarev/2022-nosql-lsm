@@ -22,8 +22,6 @@ import java.util.stream.Stream;
 
 public final class Storage implements Closeable {
     private static final String SSTABLE_DIR_PREFIX = "SSTable_";
-    private static final String TIMESTAMP_PREFIX = "T_";
-    private static final String TIMESTAMP_POSTFIX = "_T";
 
     private final Path path;
     private final CopyOnWriteArrayList<SSTable> ssTables;
@@ -125,7 +123,7 @@ public final class Storage implements Closeable {
     }
 
     private static String getTimeMark(long timestamp) {
-        return TIMESTAMP_PREFIX + timestamp + TIMESTAMP_POSTFIX;
+        return "T_" + timestamp + "_T";
     }
 
     public TimestampEntry get(MemorySegment key) {
