@@ -1,11 +1,5 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.TombstoneSkipIterator;
-import ru.mail.polis.stepanponomarev.Utils;
-import ru.mail.polis.stepanponomarev.sstable.SSTable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,8 +14,16 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.TombstoneSkipIterator;
+import ru.mail.polis.stepanponomarev.Utils;
+import ru.mail.polis.stepanponomarev.sstable.SSTable;
+
 public final class Storage implements Closeable {
-    private static final String SSTABLE_DIR_NAME = "SSTable_";
+    private static final String SSTABLE_DIR_PREFIX = "SSTable_";
+    private static final String TIMESTAMP_PREFIX = "T_";
+    private static final String TIMESTAMP_POSTFIX = "_T";
 
     private final Path path;
     private final CopyOnWriteArrayList<SSTable> ssTables;
@@ -64,24 +66,23 @@ public final class Storage implements Closeable {
 
         //TODO: ОПАСНОСТЬ!!11
         final SSTable flushedSSTable = flush(data, timestamp);
+        ssTables.forEach(SSTable::close);
         ssTables.clear();
         ssTables.add(flushedSSTable);
 
-        removeFilesWithNaster(
-                getSSTablesOlderThan(path, timestamp)
-        );
+        removeFilesWithNested(getSSTablesOlderThan(path, timestamp));
     }
 
     private static List<Path> getSSTablesOlderThan(Path path, long timestamp) throws IOException {
         try (Stream<Path> files = Files.walk(path)) {
             return files
-                    .filter(f -> f.getFileName().toString().contains(SSTABLE_DIR_NAME))
-                    .filter(f -> !f.getFileName().toString().contains(String.valueOf(timestamp)))
+                    .filter(f -> f.getFileName().toString().contains(SSTABLE_DIR_PREFIX))
+                    .filter(f -> !f.getFileName().toString().contains(getTimeMark(timestamp)))
                     .toList();
         }
     }
 
-    private static void removeFilesWithNaster(List<Path> files) throws IOException {
+    private static void removeFilesWithNested(List<Path> files) throws IOException {
         for (Path dirs : files) {
             try (Stream<Path> ssTableFiles = Files.walk(dirs)) {
                 final Iterator<Path> filesToRemove = ssTableFiles.sorted(Comparator.reverseOrder()).iterator();
@@ -98,7 +99,7 @@ public final class Storage implements Closeable {
                 .mapToLong(TimestampEntry::getSizeBytes)
                 .sum();
 
-        final Path sstableDir = path.resolve(SSTABLE_DIR_NAME + getHash(timestamp));
+        final Path sstableDir = path.resolve(SSTABLE_DIR_PREFIX + createHash(timestamp));
         Files.createDirectory(sstableDir);
 
         return SSTable.createInstance(
@@ -109,15 +110,19 @@ public final class Storage implements Closeable {
         );
     }
 
-    private static String getHash(long timestamp) {
+    private static String createHash(long timestamp) {
         final int HASH_SIZE = 30;
 
-        StringBuilder hash = new StringBuilder(timestamp + String.valueOf(System.nanoTime()));
+        StringBuilder hash = new StringBuilder(getTimeMark(timestamp) + "_H_" + System.nanoTime());
         while (hash.length() < HASH_SIZE) {
             hash.append(0);
         }
 
         return hash.substring(0, HASH_SIZE);
+    }
+
+    private static String getTimeMark(long timestamp) {
+        return TIMESTAMP_PREFIX + timestamp + TIMESTAMP_POSTFIX;
     }
 
     public TimestampEntry get(MemorySegment key) {
@@ -182,7 +187,7 @@ public final class Storage implements Closeable {
         try (Stream<Path> files = Files.list(path)) {
             final List<String> tableDirNames = files
                     .map(f -> f.getFileName().toString())
-                    .filter(n -> n.contains(SSTABLE_DIR_NAME))
+                    .filter(n -> n.contains(SSTABLE_DIR_PREFIX))
                     .sorted()
                     .toList();
 
