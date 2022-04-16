@@ -45,6 +45,7 @@ public final class Storage implements Closeable {
     }
 
     public void flush(long timestamp) throws IOException {
+        //TODO: Нужен ли конкурентный флаш?
         atomicData = AtomicData.beforeFlush(atomicData);
         if (atomicData.flushData.isEmpty()) {
             return;
