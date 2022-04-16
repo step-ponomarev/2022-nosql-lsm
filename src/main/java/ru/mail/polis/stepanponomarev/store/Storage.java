@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 
 public final class Storage implements Closeable {
     private static final String SSTABLE_DIR_PREFIX = "SSTable_";
+    private static final String TIMESTAMP_DELIM = "_T_";
 
     private final Path path;
     private AtomicData atomicStore;
@@ -70,9 +71,12 @@ public final class Storage implements Closeable {
 
         //TODO: ОПАСНОСТЬ!!11
         final SSTable flushedSSTable = flush(data, timestamp);
-        ssTables.forEach(SSTable::close);
-        ssTables.clear();
-
+        ssTables.forEach(ssTable -> {
+            if (ssTable.getCreatedTime() < timestamp) {
+                ssTable.close();
+            }
+        });
+        ssTables.removeIf(ssTable -> ssTable.getCreatedTime() < timestamp);
         ssTables.add(flushedSSTable);
 
         removeFilesWithNested(getSSTablesOlderThan(path, timestamp));
@@ -113,7 +117,8 @@ public final class Storage implements Closeable {
                 sstableDir,
                 data.values().iterator(),
                 sizeBytes,
-                data.size()
+                data.size(),
+                timestamp
         );
     }
 
@@ -132,7 +137,7 @@ public final class Storage implements Closeable {
     }
 
     private static String getTimeMark(long timestamp) {
-        return "T_" + timestamp + "_T";
+        return TIMESTAMP_DELIM + timestamp + TIMESTAMP_DELIM;
     }
 
     public TimestampEntry get(MemorySegment key) {
@@ -204,7 +209,13 @@ public final class Storage implements Closeable {
 
             final CopyOnWriteArrayList<SSTable> tables = new CopyOnWriteArrayList<>();
             for (String name : tableDirNames) {
-                tables.add(SSTable.upInstance(path.resolve(name)));
+                final String[] split = name.split(TIMESTAMP_DELIM);
+                if (split.length != 3) {
+                    throw new IllegalStateException("Invalid SSTable dir name");
+                }
+
+                final long createdTime = Long.parseLong(split[1]);
+                tables.add(SSTable.upInstance(path.resolve(name), createdTime));
             }
 
             return tables;
