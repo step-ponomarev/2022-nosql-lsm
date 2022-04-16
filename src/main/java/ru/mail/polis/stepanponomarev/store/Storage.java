@@ -24,13 +24,16 @@ public final class Storage implements Closeable {
     private static final String SSTABLE_DIR_PREFIX = "SSTable_";
 
     private final Path path;
+    private AtomicData atomicStore;
     private final CopyOnWriteArrayList<SSTable> ssTables;
-    private final SortedMap<MemorySegment, TimestampEntry> memTable;
 
     public Storage(Path path) throws IOException {
         this.path = path;
+        this.atomicStore = new AtomicData(
+                new ConcurrentSkipListMap<>(Utils.COMPARATOR),
+                new ConcurrentSkipListMap<>(Utils.COMPARATOR)
+        );
         this.ssTables = wakeUpSSTables(path);
-        this.memTable = new ConcurrentSkipListMap<>(Utils.COMPARATOR);
     }
 
     @Override
@@ -41,16 +44,19 @@ public final class Storage implements Closeable {
     }
 
     public void flush(long timestamp) throws IOException {
-        if (memTable.isEmpty()) {
+        atomicStore = AtomicData.beforeFlush(atomicStore);
+        if (atomicStore.flushData.isEmpty()) {
             return;
         }
 
-        ssTables.add(
-                flush(memTable, timestamp)
-        );
+        final SSTable flushedSSTable = flush(atomicStore.flushData, timestamp);
+        ssTables.add(flushedSSTable);
+
+        atomicStore = AtomicData.afterFlush(atomicStore);
     }
 
     public void compact(long timestamp) throws IOException {
+        atomicStore = AtomicData.beforeFlush(atomicStore);
         final Iterator<TimestampEntry> dataIterator = new TombstoneSkipIterator<>(get(null, null));
         if (!dataIterator.hasNext()) {
             return;
@@ -66,9 +72,12 @@ public final class Storage implements Closeable {
         final SSTable flushedSSTable = flush(data, timestamp);
         ssTables.forEach(SSTable::close);
         ssTables.clear();
+
         ssTables.add(flushedSSTable);
 
         removeFilesWithNested(getSSTablesOlderThan(path, timestamp));
+
+        atomicStore = AtomicData.afterFlush(atomicStore);
     }
 
     private static List<Path> getSSTablesOlderThan(Path path, long timestamp) throws IOException {
@@ -127,7 +136,7 @@ public final class Storage implements Closeable {
     }
 
     public TimestampEntry get(MemorySegment key) {
-        final TimestampEntry memoryEntry = memTable.get(key);
+        final TimestampEntry memoryEntry = atomicStore.memTable.get(key);
         if (memoryEntry != null) {
             return memoryEntry.value() == null ? null : memoryEntry;
         }
@@ -141,7 +150,7 @@ public final class Storage implements Closeable {
         if (Utils.compare(key, entry.key()) == 0) {
             return entry.value() == null ? null : entry;
         }
-        
+
         return null;
     }
 
@@ -151,7 +160,8 @@ public final class Storage implements Closeable {
             entries.add(ssTable.get(from, to));
         }
 
-        entries.add(slice(memTable, from, to));
+        entries.add(slice(atomicStore.flushData, from, to));
+        entries.add(slice(atomicStore.memTable, from, to));
 
         return MergeIterator.of(entries, Utils.COMPARATOR);
     }
@@ -181,7 +191,7 @@ public final class Storage implements Closeable {
     }
 
     public void put(TimestampEntry entry) {
-        memTable.put(entry.key(), entry);
+        atomicStore.memTable.put(entry.key(), entry);
     }
 
     private static CopyOnWriteArrayList<SSTable> wakeUpSSTables(Path path) throws IOException {
