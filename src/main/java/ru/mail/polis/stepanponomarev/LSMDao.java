@@ -11,13 +11,19 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     private static final long MEMORY_BYTE_LIMIT = 4000_000;
 
+    private final Object upsertMonitorObject = new Object();
+
     private final Storage storage;
     private final AtomicLong sizeBytes;
     private final ExecutorService executorService;
+
+    private final Lock flushCompactLock;
 
     public LSMDao(Path path) throws IOException {
         if (Files.notExists(path)) {
@@ -27,6 +33,7 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
         this.storage = new Storage(path);
         this.sizeBytes = new AtomicLong(0);
         this.executorService = Executors.newFixedThreadPool(2);
+        this.flushCompactLock = new ReentrantLock();
     }
 
     @Override
@@ -45,15 +52,11 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
         final long newSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
         if (newSizeBytes >= MEMORY_BYTE_LIMIT) {
-            synchronized (this) {
+            synchronized (upsertMonitorObject) {
                 if (sizeBytes.get() >= MEMORY_BYTE_LIMIT) {
-                    executorService.execute(() -> {
-                        try {
-                            storage.flush(entry.getTimestamp());
-                        } catch (IOException e) {
-                            throw new IllegalStateException("Something wrong with flush", e);
-                        }
-                    });
+                    executorService.execute(
+                            new BlockingTask(() -> storage.flush(entry.getTimestamp()))
+                    );
                     sizeBytes.addAndGet(-newSizeBytes);
                 }
             }
@@ -69,19 +72,45 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     @Override
     public void compact() throws IOException {
-        final long timestamp = System.currentTimeMillis();
-        executorService.execute(() -> {
-            try {
-                storage.compact(timestamp);
-            } catch (IOException e) {
-                throw new IllegalStateException("Something wrong with compact", e);
-            }
-        });
+        executorService.execute(
+                new BlockingTask(() -> storage.compact(System.currentTimeMillis()))
+        );
     }
 
     @Override
     public void flush() throws IOException {
+        flushCompactLock.lock();
+
         final long timestamp = System.currentTimeMillis();
-        storage.flush(timestamp);
+        try {
+            storage.flush(timestamp);
+        } finally {
+            flushCompactLock.unlock();
+        }
+    }
+
+    private class BlockingTask implements Runnable {
+        final Task task;
+
+        private interface Task {
+            void preformTask() throws Exception;
+        }
+
+        private BlockingTask(Task task) {
+            this.task = task;
+        }
+
+        @Override
+        public void run() {
+            flushCompactLock.lock();
+
+            try {
+                task.preformTask();
+            } catch (Exception e) {
+                throw new IllegalStateException("Task failed", e);
+            } finally {
+                flushCompactLock.unlock();
+            }
+        }
     }
 }

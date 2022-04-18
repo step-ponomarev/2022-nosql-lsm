@@ -47,7 +47,7 @@ public final class Storage implements Closeable {
 
     public void flush(long timestamp) throws IOException {
         if (atomicData.flushing) {
-            throw new IllegalStateException("Flushing is going already.");
+            throw new IllegalStateException("Flushing is going on.");
         }
 
         atomicData = AtomicData.beforeFlush(atomicData);
@@ -55,7 +55,6 @@ public final class Storage implements Closeable {
             return;
         }
 
-        //TODO: нарушение порядка ссТейблов?
         final SSTable flushedSSTable = flush(atomicData.flushData, timestamp);
         ssTables.add(flushedSSTable);
 
@@ -63,6 +62,10 @@ public final class Storage implements Closeable {
     }
 
     public void compact(long timestamp) throws IOException {
+        if (atomicData.flushing) {
+            throw new IllegalStateException("Flushing is going on.");
+        }
+
         atomicData = AtomicData.beforeFlush(atomicData);
         final Iterator<TimestampEntry> dataIterator = new TombstoneSkipIterator<>(get(null, null));
         if (!dataIterator.hasNext()) {
@@ -75,7 +78,6 @@ public final class Storage implements Closeable {
             data.put(entry.key(), entry);
         }
 
-        //TODO: нарушение порядка ссТейблов?
         final SSTable flushedSSTable = flush(data, timestamp);
         ssTables.forEach(ssTable -> {
             if (ssTable.getCreatedTime() < timestamp) {
