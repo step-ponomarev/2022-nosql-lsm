@@ -10,30 +10,27 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
+//TODO: NEEDS REFACTORING
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
-    private static final long MEMORY_BYTE_LIMIT = 4000_000;
-
     private final Object upsertMonitorObject = new Object();
 
     private final Storage storage;
     private final AtomicLong sizeBytes;
     private final ExecutorService executorService;
+    private final long limitBytes;
 
-    private final Lock flushCompactLock;
-
-    public LSMDao(Path path) throws IOException {
+    public LSMDao(Path path, long limitBytes) throws IOException {
         if (Files.notExists(path)) {
             throw new IllegalArgumentException("Path: " + path + " is not exist");
         }
 
+        this.limitBytes = limitBytes;
         this.storage = new Storage(path);
         this.sizeBytes = new AtomicLong(0);
         this.executorService = Executors.newFixedThreadPool(2);
-        this.flushCompactLock = new ReentrantLock();
     }
 
     @Override
@@ -51,11 +48,16 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
         storage.upsert(entry);
 
         final long newSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
-        if (newSizeBytes >= MEMORY_BYTE_LIMIT) {
+        if (newSizeBytes >= limitBytes) {
             synchronized (upsertMonitorObject) {
-                if (sizeBytes.get() >= MEMORY_BYTE_LIMIT) {
-                    executorService.execute(
-                            new BlockingTask(() -> storage.flush(entry.getTimestamp()))
+                if (sizeBytes.get() >= limitBytes) {
+                    executorService.execute(() -> {
+                                try {
+                                    storage.flush(entry.getTimestamp());
+                                } catch (IOException e) {
+                                    throw new IllegalStateException(e);
+                                }
+                            }
                     );
                     sizeBytes.addAndGet(-newSizeBytes);
                 }
@@ -65,52 +67,35 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     @Override
     public void close() throws IOException {
+        executorService.shutdown();
+
+        try {
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+
         flush();
         storage.close();
-        executorService.shutdown();
     }
 
     @Override
     public void compact() throws IOException {
         executorService.execute(
-                new BlockingTask(() -> storage.compact(System.currentTimeMillis()))
+                () -> {
+                    try {
+                        storage.compact(System.currentTimeMillis());
+                    } catch (IOException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
         );
     }
 
     @Override
     public void flush() throws IOException {
-        flushCompactLock.lock();
-
         final long timestamp = System.currentTimeMillis();
-        try {
-            storage.flush(timestamp);
-        } finally {
-            flushCompactLock.unlock();
-        }
-    }
-
-    private class BlockingTask implements Runnable {
-        final Task task;
-
-        private interface Task {
-            void preformTask() throws Exception;
-        }
-
-        private BlockingTask(Task task) {
-            this.task = task;
-        }
-
-        @Override
-        public void run() {
-            flushCompactLock.lock();
-
-            try {
-                task.preformTask();
-            } catch (Exception e) {
-                throw new IllegalStateException("Task failed", e);
-            } finally {
-                flushCompactLock.unlock();
-            }
-        }
+        storage.flush(timestamp);
     }
 }

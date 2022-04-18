@@ -27,7 +27,7 @@ public final class Storage implements Closeable {
     private final Path path;
     private final CopyOnWriteArrayList<SSTable> ssTables;
 
-    private AtomicData atomicData;
+    private volatile AtomicData atomicData;
 
     public Storage(Path path) throws IOException {
         this.path = path;
@@ -45,9 +45,9 @@ public final class Storage implements Closeable {
         }
     }
 
-    public void flush(long timestamp) throws IOException {
-        if (atomicData.flushing) {
-            throw new IllegalStateException("Flushing is going on.");
+    public synchronized void flush(long timestamp) throws IOException {
+        if (!atomicData.flushData.isEmpty()) {
+            throw new IllegalStateException("FLUSH:  Flushing is going on.");
         }
 
         atomicData = AtomicData.beforeFlush(atomicData);
@@ -61,9 +61,9 @@ public final class Storage implements Closeable {
         atomicData = AtomicData.afterFlush(atomicData);
     }
 
-    public void compact(long timestamp) throws IOException {
-        if (atomicData.flushing) {
-            throw new IllegalStateException("Flushing is going on.");
+    public synchronized void compact(long timestamp) throws IOException {
+        if (!atomicData.flushData.isEmpty()) {
+            throw new IllegalStateException("COMPACT: Flushing is going on.");
         }
 
         atomicData = AtomicData.beforeFlush(atomicData);

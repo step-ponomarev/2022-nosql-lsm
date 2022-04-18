@@ -11,13 +11,14 @@ import ru.mail.polis.test.DaoFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-@DaoFactory(stage = 4)
+@DaoFactory(stage = 5)
 public class LSMDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
 
     @Override
     public Dao<MemorySegment, TimestampEntry> createDao(Config config) throws IOException {
         return new LSMDao(
-                config.basePath()
+                config.basePath(),
+                config.flushThresholdBytes()
         );
     }
 
