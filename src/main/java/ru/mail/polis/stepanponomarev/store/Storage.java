@@ -25,16 +25,17 @@ public final class Storage implements Closeable {
     private static final String TIMESTAMP_DELIM = "_T_";
 
     private final Path path;
-    private AtomicData atomicData;
     private final CopyOnWriteArrayList<SSTable> ssTables;
+
+    private AtomicData atomicData;
 
     public Storage(Path path) throws IOException {
         this.path = path;
+        this.ssTables = wakeUpSSTables(path);
         this.atomicData = new AtomicData(
                 new ConcurrentSkipListMap<>(Utils.COMPARATOR),
                 new ConcurrentSkipListMap<>(Utils.COMPARATOR)
         );
-        this.ssTables = wakeUpSSTables(path);
     }
 
     @Override
@@ -45,12 +46,16 @@ public final class Storage implements Closeable {
     }
 
     public void flush(long timestamp) throws IOException {
-        //TODO: Нужен ли конкурентный флаш?
+        if (atomicData.flushing) {
+            throw new IllegalStateException("Flushing is going already.");
+        }
+
         atomicData = AtomicData.beforeFlush(atomicData);
         if (atomicData.flushData.isEmpty()) {
             return;
         }
 
+        //TODO: нарушение порядка ссТейблов?
         final SSTable flushedSSTable = flush(atomicData.flushData, timestamp);
         ssTables.add(flushedSSTable);
 
@@ -70,7 +75,7 @@ public final class Storage implements Closeable {
             data.put(entry.key(), entry);
         }
 
-        //TODO: ОПАСНОСТЬ!!11
+        //TODO: нарушение порядка ссТейблов?
         final SSTable flushedSSTable = flush(data, timestamp);
         ssTables.forEach(ssTable -> {
             if (ssTable.getCreatedTime() < timestamp) {
@@ -196,7 +201,7 @@ public final class Storage implements Closeable {
         return store.subMap(from, to).values().iterator();
     }
 
-    public void put(TimestampEntry entry) {
+    public void upsert(TimestampEntry entry) {
         atomicData.memTable.put(entry.key(), entry);
     }
 
