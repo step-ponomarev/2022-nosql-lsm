@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 //TODO: NEEDS REFACTORING
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     private final Object upsertMonitorObject = new Object();
+    private final Object flushMonitorObject = new Object();
 
     private final Storage storage;
     private final AtomicLong sizeBytes;
@@ -45,21 +46,24 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     @Override
     public void upsert(TimestampEntry entry) {
+        final long newSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
         storage.upsert(entry);
 
-        final long newSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
-        if (newSizeBytes >= limitBytes) {
+        if (newSizeBytes > limitBytes) {
             synchronized (upsertMonitorObject) {
-                if (sizeBytes.get() >= limitBytes) {
+                if (sizeBytes.get() > limitBytes) {
                     executorService.execute(() -> {
                                 try {
-                                    storage.flush(entry.getTimestamp());
+                                    synchronized (upsertMonitorObject) {
+                                        long l = sizeBytes.get();
+                                        storage.flush(System.currentTimeMillis());
+                                        sizeBytes.addAndGet(-l);
+                                    }
                                 } catch (IOException e) {
                                     throw new IllegalStateException(e);
                                 }
                             }
                     );
-                    sizeBytes.addAndGet(-newSizeBytes);
                 }
             }
         }
@@ -95,7 +99,8 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     @Override
     public void flush() throws IOException {
-        final long timestamp = System.currentTimeMillis();
-        storage.flush(timestamp);
+        storage.flush(
+                System.currentTimeMillis()
+        );
     }
 }

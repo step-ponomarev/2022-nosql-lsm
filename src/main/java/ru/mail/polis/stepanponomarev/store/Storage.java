@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 public final class Storage implements Closeable {
@@ -26,6 +27,8 @@ public final class Storage implements Closeable {
 
     private final Path path;
     private final CopyOnWriteArrayList<SSTable> ssTables;
+
+    private final AtomicBoolean flushIsRunning = new AtomicBoolean(false);
 
     private volatile AtomicData atomicData;
 
@@ -45,24 +48,29 @@ public final class Storage implements Closeable {
         }
     }
 
+    //TODO: Возвращать информацию о зафлашенных данных (размер и тд)
     public synchronized void flush(long timestamp) throws IOException {
-        if (!atomicData.flushData.isEmpty()) {
-            throw new IllegalStateException("FLUSH:  Flushing is going on.");
+        try {
+            if (flushIsRunning.getAndSet(true)) {
+                throw new IllegalStateException("FLUSH:  Flushing is going on.");
+            }
+
+            atomicData = AtomicData.beforeFlush(atomicData);
+            if (atomicData.flushData.isEmpty()) {
+                return;
+            }
+
+            final SSTable flushedSSTable = flushAndCreateSSTable(atomicData.flushData, timestamp);
+            ssTables.add(flushedSSTable);
+
+            atomicData = AtomicData.afterFlush(atomicData);
+        } finally {
+            flushIsRunning.set(false);
         }
-
-        atomicData = AtomicData.beforeFlush(atomicData);
-        if (atomicData.flushData.isEmpty()) {
-            return;
-        }
-
-        final SSTable flushedSSTable = flush(atomicData.flushData, timestamp);
-        ssTables.add(flushedSSTable);
-
-        atomicData = AtomicData.afterFlush(atomicData);
     }
 
     public synchronized void compact(long timestamp) throws IOException {
-        if (!atomicData.flushData.isEmpty()) {
+        if (flushIsRunning.get()) {
             throw new IllegalStateException("COMPACT: Flushing is going on.");
         }
 
@@ -78,7 +86,7 @@ public final class Storage implements Closeable {
             data.put(entry.key(), entry);
         }
 
-        final SSTable flushedSSTable = flush(data, timestamp);
+        final SSTable flushedSSTable = flushAndCreateSSTable(data, timestamp);
         ssTables.forEach(ssTable -> {
             if (ssTable.getCreatedTime() < timestamp) {
                 ssTable.close();
@@ -112,7 +120,7 @@ public final class Storage implements Closeable {
         }
     }
 
-    private SSTable flush(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
+    private SSTable flushAndCreateSSTable(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
         final long sizeBytes = data.values()
                 .stream()
                 .mapToLong(TimestampEntry::getSizeBytes)
