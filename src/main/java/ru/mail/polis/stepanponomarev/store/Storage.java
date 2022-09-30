@@ -48,22 +48,22 @@ public final class Storage implements Closeable {
         }
     }
 
-    //TODO: Возвращать информацию о зафлашенных данных (размер и тд)
-    public synchronized void flush(long timestamp) throws IOException {
+    public synchronized long flush(long timestamp) throws IOException {
         try {
             if (flushIsRunning.getAndSet(true)) {
                 throw new IllegalStateException("FLUSH:  Flushing is going on.");
             }
 
             atomicData = AtomicData.beforeFlush(atomicData);
+
             if (atomicData.flushData.isEmpty()) {
-                return;
+                return 0;
             }
 
-            final SSTable flushedSSTable = flushAndCreateSSTable(atomicData.flushData, timestamp);
-            ssTables.add(flushedSSTable);
+            FlushedData flushedData = flushAndCreateSSTable(atomicData.flushData, timestamp);
+            ssTables.add(flushedData.ssTable);
 
-            atomicData = AtomicData.afterFlush(atomicData);
+            return flushedData.sizeBytes;
         } finally {
             flushIsRunning.set(false);
         }
@@ -86,7 +86,7 @@ public final class Storage implements Closeable {
             data.put(entry.key(), entry);
         }
 
-        final SSTable flushedSSTable = flushAndCreateSSTable(data, timestamp);
+        final SSTable flushedSSTable = flushAndCreateSSTable(data, timestamp).ssTable;
         ssTables.forEach(ssTable -> {
             if (ssTable.getCreatedTime() < timestamp) {
                 ssTable.close();
@@ -120,7 +120,7 @@ public final class Storage implements Closeable {
         }
     }
 
-    private SSTable flushAndCreateSSTable(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
+    private FlushedData flushAndCreateSSTable(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
         final long sizeBytes = data.values()
                 .stream()
                 .mapToLong(TimestampEntry::getSizeBytes)
@@ -129,13 +129,28 @@ public final class Storage implements Closeable {
         final Path sstableDir = path.resolve(SSTABLE_DIR_PREFIX + createHash(timestamp));
         Files.createDirectory(sstableDir);
 
-        return SSTable.createInstance(
+        SSTable flushedSSTable = SSTable.createInstance(
                 sstableDir,
                 data.values().iterator(),
                 sizeBytes,
                 data.size(),
                 timestamp
         );
+
+        return new FlushedData(
+                flushedSSTable,
+                sizeBytes
+        );
+    }
+
+    private final class FlushedData {
+        public final SSTable ssTable;
+        public final long sizeBytes;
+
+        public FlushedData(SSTable ssTable, long sizeBytes) {
+            this.ssTable = ssTable;
+            this.sizeBytes = sizeBytes;
+        }
     }
 
     private static String createHash(long timestamp) {

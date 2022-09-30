@@ -13,11 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-//TODO: NEEDS REFACTORING
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
-    private final Object upsertMonitorObject = new Object();
-    private final Object flushMonitorObject = new Object();
-
     private final Storage storage;
     private final AtomicLong sizeBytes;
     private final ExecutorService executorService;
@@ -48,24 +44,30 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     public void upsert(TimestampEntry entry) {
         final long newSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
         storage.upsert(entry);
+        if (newSizeBytes < limitBytes) {
+            return;
+        }
 
-        if (newSizeBytes > limitBytes) {
-            synchronized (upsertMonitorObject) {
-                if (sizeBytes.get() > limitBytes) {
-                    executorService.execute(() -> {
-                                try {
-                                    synchronized (upsertMonitorObject) {
-                                        long l = sizeBytes.get();
-                                        storage.flush(System.currentTimeMillis());
-                                        sizeBytes.addAndGet(-l);
-                                    }
-                                } catch (IOException e) {
-                                    throw new IllegalStateException(e);
-                                }
-                            }
-                    );
-                }
+        synchronized (this) {
+            sizeBytes.addAndGet(-newSizeBytes);
+            if (sizeBytes.get() < limitBytes) {
+                return;
             }
+
+            executorService.execute(() -> handleFlushAsync(newSizeBytes));
+        }
+    }
+
+    private void handleFlushAsync(long newSizeBytes) {
+        try {
+            final long flushedSizeBytes = storage.flush(System.currentTimeMillis());
+
+            if (flushedSizeBytes > 0) {
+                final long diff = flushedSizeBytes - newSizeBytes;
+                sizeBytes.addAndGet(-diff);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 

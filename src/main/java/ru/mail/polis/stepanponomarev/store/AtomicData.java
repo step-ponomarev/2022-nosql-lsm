@@ -22,7 +22,7 @@ public class AtomicData {
     public static AtomicData beforeFlush(AtomicData data) {
         return new AtomicData(
                 new ConcurrentSkipListMap<>(Utils.COMPARATOR),
-                new ConcurrentSkipListMap<>(data.memTable)
+                data.memTable
         );
     }
 
