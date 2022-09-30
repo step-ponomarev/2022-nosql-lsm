@@ -42,28 +42,30 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
 
     @Override
     public void upsert(TimestampEntry entry) {
-        final long newSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
+        final long currentStoreSizeBytes = sizeBytes.addAndGet(entry.getSizeBytes());
         storage.upsert(entry);
-        if (newSizeBytes < limitBytes) {
+        if (currentStoreSizeBytes < limitBytes) {
             return;
         }
 
-        synchronized (this) {
-            sizeBytes.addAndGet(-newSizeBytes);
-            if (sizeBytes.get() < limitBytes) {
-                return;
-            }
-
-            executorService.execute(() -> handleFlushAsync(newSizeBytes));
-        }
+        scheduleFlush(currentStoreSizeBytes);
     }
 
-    private void handleFlushAsync(long newSizeBytes) {
+    private synchronized void scheduleFlush(long flushingSize) {
+        sizeBytes.addAndGet(-flushingSize);
+        if (sizeBytes.get() < limitBytes) {
+            return;
+        }
+
+        executorService.execute(() -> handleFlush(flushingSize));
+    }
+
+    private void handleFlush(long expectedFlushingSize) {
         try {
             final long flushedSizeBytes = storage.flush(System.currentTimeMillis());
 
             if (flushedSizeBytes > 0) {
-                final long diff = flushedSizeBytes - newSizeBytes;
+                final long diff = flushedSizeBytes - expectedFlushingSize;
                 sizeBytes.addAndGet(-diff);
             }
         } catch (IOException e) {
