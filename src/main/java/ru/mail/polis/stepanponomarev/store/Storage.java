@@ -10,12 +10,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -120,7 +115,9 @@ public final class Storage implements Closeable {
         }
     }
 
-    private FlushedData flushAndCreateSSTable(SortedMap<MemorySegment, TimestampEntry> data, long timestamp) throws IOException {
+    private FlushedData flushAndCreateSSTable(
+            SortedMap<MemorySegment, TimestampEntry> data,
+            long timestamp) throws IOException {
         final long sizeBytes = data.values()
                 .stream()
                 .mapToLong(TimestampEntry::getSizeBytes)
