@@ -1,9 +1,5 @@
 package ru.mail.polis.stepanponomarev;
 
-import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.Dao;
-import ru.mail.polis.stepanponomarev.store.Storage;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +8,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import jdk.incubator.foreign.MemorySegment;
+import ru.mail.polis.Dao;
+import ru.mail.polis.stepanponomarev.store.Storage;
 
 public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     private final Storage storage;
@@ -91,20 +91,20 @@ public class LSMDao implements Dao<MemorySegment, TimestampEntry> {
     @Override
     public void compact() throws IOException {
         executorService.execute(
-                () -> {
-                    try {
-                        storage.compact(System.currentTimeMillis());
-                    } catch (IOException e) {
-                        throw new IllegalStateException(e);
-                    }
+            () -> {
+                try {
+                    storage.compact(System.currentTimeMillis());
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
                 }
+            }
         );
     }
 
     @Override
     public void flush() throws IOException {
         storage.flush(
-                System.currentTimeMillis()
+            System.currentTimeMillis()
         );
     }
 }
