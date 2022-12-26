@@ -13,7 +13,7 @@ import ru.mail.polis.stepanponomarev.MemorySegmentDao;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 import ru.mail.polis.test.DaoFactory;
 
-@DaoFactory(stage = 4)
+@DaoFactory(stage = 5)
 public class LSMDaoFactory implements DaoFactory.Factory<MemorySegment, TimestampEntry> {
 
     @Override
