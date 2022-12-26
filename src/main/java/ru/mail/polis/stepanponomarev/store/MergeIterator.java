@@ -1,12 +1,13 @@
 package ru.mail.polis.stepanponomarev.store;
 
-import ru.mail.polis.Entry;
-
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+
+import ru.mail.polis.Entry;
+
 
 final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> oldDataIterator;
@@ -36,9 +37,9 @@ final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
         }
 
         return new MergeIterator<>(
-                of(iterators.subList(0, size / 2), comparator),
-                of(iterators.subList(size / 2, size), comparator),
-                comparator
+            of(iterators.subList(0, size / 2), comparator),
+            of(iterators.subList(size / 2, size), comparator),
+            comparator
         );
     }
 

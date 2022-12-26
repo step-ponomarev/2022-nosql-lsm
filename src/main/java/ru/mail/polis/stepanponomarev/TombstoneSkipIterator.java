@@ -1,9 +1,9 @@
 package ru.mail.polis.stepanponomarev;
 
-import ru.mail.polis.Entry;
-
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+
+import ru.mail.polis.Entry;
 
 public class TombstoneSkipIterator<T, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> delegate;

@@ -1,11 +1,5 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
-import jdk.incubator.foreign.MemoryAccess;
-import jdk.incubator.foreign.MemorySegment;
-import jdk.incubator.foreign.ResourceScope;
-import ru.mail.polis.stepanponomarev.TimestampEntry;
-import ru.mail.polis.stepanponomarev.Utils;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -14,11 +8,17 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import ru.mail.polis.stepanponomarev.TimestampEntry;
+import ru.mail.polis.stepanponomarev.Utils;
+
 public final class SSTable implements Closeable {
     public static final long TOMBSTONE_TAG = -1;
     private static final String SSTABLE_FILE_NAME = "sstable.data";
     private static final String INDEX_FILE_NAME = "sstable.index";
-    
+
     private final long createdTimeMs;
 
     private final MemorySegment indexMemorySegment;
@@ -133,7 +133,7 @@ public final class SSTable implements Closeable {
 
         return new MappedIterator(tableMemorySegment.asSlice(fromPosition, toPosition - fromPosition));
     }
-    
+
     public long getCreatedTime() {
         return createdTimeMs;
     }
@@ -161,7 +161,7 @@ public final class SSTable implements Closeable {
 
         return -low;
     }
-    
+
     private static long flush(TimestampEntry entry, MemorySegment memorySegment, long offset) {
         final MemorySegment key = entry.key();
         final long keySize = key.byteSize();

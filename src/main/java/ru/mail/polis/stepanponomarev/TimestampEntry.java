@@ -1,10 +1,8 @@
 package ru.mail.polis.stepanponomarev;
 
 import jdk.incubator.foreign.MemorySegment;
-import ru.mail.polis.BaseEntry;
 import ru.mail.polis.Entry;
 
-//TODO: Задел на будущее
 public final class TimestampEntry implements Entry<MemorySegment> {
     private final Entry<MemorySegment> entry;
     private final long timestamp;

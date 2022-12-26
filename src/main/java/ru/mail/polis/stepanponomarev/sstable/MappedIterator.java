@@ -1,11 +1,11 @@
 package ru.mail.polis.stepanponomarev.sstable;
 
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
 import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
-
-import java.util.Iterator;
-import java.util.NoSuchElementException;
 
 final class MappedIterator implements Iterator<TimestampEntry> {
     private final MemorySegment memorySegment;
