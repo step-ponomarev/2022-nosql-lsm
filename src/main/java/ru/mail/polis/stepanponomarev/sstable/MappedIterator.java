@@ -7,6 +7,7 @@ import jdk.incubator.foreign.MemoryAccess;
 import jdk.incubator.foreign.MemorySegment;
 import ru.mail.polis.stepanponomarev.TimestampEntry;
 
+
 final class MappedIterator implements Iterator<TimestampEntry> {
     private final MemorySegment memorySegment;
     private long position;

@@ -16,7 +16,7 @@ public final class TimestampEntry implements Entry<MemorySegment> {
         this.entry = new BaseEntry<>(key, value);
         this.timestamp = timestamp;
     }
-    
+
     public long getSizeBytes() {
         final MemorySegment key = entry.key();
         final MemorySegment value = entry.value();

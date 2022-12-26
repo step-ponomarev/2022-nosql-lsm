@@ -8,7 +8,6 @@ import java.util.NoSuchElementException;
 
 import ru.mail.polis.Entry;
 
-
 final class MergeIterator<T, E extends Entry<T>> implements Iterator<E> {
     private final Iterator<E> oldDataIterator;
     private final Iterator<E> newDataIterator;
