@@ -166,14 +166,18 @@ public final class Storage implements Closeable {
     }
 
     public void upsert(TimestampEntry entry) {
-        //TODO: нужен полноценный свап, разовая операция
-        atomicData.memTable.compute(entry.key(), (k, v) -> {
-            long entrySize = entry.getSizeBytes();
-            if (v != null) {
-                entrySize -= v.getSizeBytes();
-            }
+        final TimestampEntry updated = atomicData.memTable.computeIfPresent(entry.key(), (k, v) -> {
+            atomicData.memTableSizeBytes.addAndGet(entry.getSizeBytes() - v.getSizeBytes());
 
-            atomicData.memTableSizeBytes.addAndGet(entrySize);
+            return entry;
+        });
+
+        if (updated != null) {
+            return;
+        }
+
+        atomicData.memTable.computeIfAbsent(entry.key(), (k) -> {
+            atomicData.memTableSizeBytes.addAndGet(entry.getSizeBytes());
 
             return entry;
         });
